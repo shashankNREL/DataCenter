@@ -1,0 +1,9 @@
+Special thanks to all contributors, listed below!
+This also serves as acknowlegement by the individuals listed that their new contributions were made under agreement of both MIT and Apache-2.0 license.
+
+Wesley Brewer (brewerwh@ornl.gov), Oak Ridge National Laboratory
+Rafal Wojda (wojdarp@ornl.gov), Oak Ridge National Laboratory
+Matthias Maiterth (maiterthm@ornl.gov), Oak Ridge National Laboratory
+Sedrick Bouknight (bouknightsl@ornl.gov), Oak Ridge National Laboratory
+Jesse Hines (hinesjr@ornl.gov), Oak Ridge National Laboratory
+Jake Webb (webbtj@ornl.gov), Oak Ridge National Laboratory
