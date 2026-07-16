@@ -1,0 +1,28 @@
+// load_check.mos
+// Verifies that vendored MSL 3.2.3 and the local ThermoPower library both
+// load, and that the target simple-cycle GT model parses cleanly.
+//
+// MODELICAPATH is set on the docker command line via -e so omc resolves
+// "Modelica 3.2.3" and "ModelicaServices 3.2.3" from the bind-mounted
+// tools/build_surrogate/libs/ tree instead of hitting the network.
+//
+// Run from project root:
+//   docker run --rm -v $PWD:/work -w /work \
+//     -e OPENMODELICALIBRARY=/work/tools/build_surrogate/libs \
+//     openmodelica/openmodelica:v1.26.7-minimal \
+//     omc /work/tools/build_surrogate/load_check.mos
+
+print("=== loadModel(Modelica, {\"3.2.3\"}) ===\n");
+ok_msl := loadModel(Modelica, {"3.2.3"});
+print("result: "); print(String(ok_msl)); print("\n");
+print(getErrorString()); print("\n");
+
+print("=== loadFile(\"/work/ThermoPower/ThermoPower/package.mo\") ===\n");
+ok_tp := loadFile("/work/ThermoPower/ThermoPower/package.mo");
+print("result: "); print(String(ok_tp)); print("\n");
+print(getErrorString()); print("\n");
+
+print("=== checkModel(ThermoPower.PowerPlants.GasTurbine.Examples.GasTurbineSimplified) ===\n");
+print(checkModel(ThermoPower.PowerPlants.GasTurbine.Examples.GasTurbineSimplified));
+print("\n");
+print(getErrorString()); print("\n");
