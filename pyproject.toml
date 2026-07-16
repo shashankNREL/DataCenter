@@ -13,8 +13,11 @@ dependencies = [
     "scipy",
 ]
 
-[tool.setuptools]
-packages = ["gas_plant"]
+[project.optional-dependencies]
+andes = ["andes"]
+
+[tool.setuptools.packages.find]
+include = ["gas_plant", "gas_plant.*", "gas_plant_andes", "gas_plant_andes.*"]
 
 [tool.setuptools.package-data]
 gas_plant = ["data/*.csv"]
