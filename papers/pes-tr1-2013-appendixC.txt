@@ -1,0 +1,37 @@
+Parameter, Typical Values
+MWCAP, UserSupply
+r, 0.04
+rselect, 1
+Tpelec (sec), 1
+MaxERR (pu), 0.05
+MinERR (pu), -0.05
+KPGOV, 10
+KIGOV, 2
+KDGOV, 0
+TDGOV (sec),1
+VMAX, 1
+VMIN, 0.15
+TACT (sec), 0.5
+KTURB, 1.5
+WFNL, 0.2
+TB (sec), 0.1
+TC (sec), 0
+flag, 1
+TENG (sec), 0
+TFLOAD (sec), 3
+KPLOAD, 2
+KILOAD, 0.67
+LDREF, 1
+DM, 0
+ROPEN (pu/sec), 0.1
+RCLOSE (pu/sec), -0.1
+KIMW, 0
+PMWSET (pu), N/A
+ASET (pu), 0.01
+KA (pu), 10
+TA (sec), 0.1
+db (pu), 0
+TSA (sec), 4
+TSB (sec), 5
+RUP (pu), 99
+RDOWN (pu), -99
