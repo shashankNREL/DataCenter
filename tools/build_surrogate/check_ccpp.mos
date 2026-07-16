@@ -1,0 +1,9 @@
+// check_ccpp.mos — verify CCPP_Sim3 parses and identify key variables.
+
+loadModel(Modelica, {"3.2.3"});                              getErrorString();
+loadFile("/work/ThermoPower/ThermoPower/package.mo");        getErrorString();
+
+print("=== checkModel CCPP_Sim3 ===\n");
+print(checkModel(ThermoPower.PowerPlants.Simulators.CCPP_Sim3));
+print("\n");
+print(getErrorString()); print("\n");
