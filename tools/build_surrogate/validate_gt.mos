@@ -1,0 +1,38 @@
+// validate_gt.mos
+// Native validation: simulate ThermoPower.PowerPlants.GasTurbine.Tests.TestGasTurbine
+// at three load points and print the steady values that the surrogate will record.
+
+loadModel(Modelica, {"3.2.3"});                              getErrorString();
+loadFile("/work/ThermoPower/ThermoPower/package.mo");        getErrorString();
+
+cd("/tmp");
+
+print("\n--- GTLoad = 1.0 ---\n");
+simulate(ThermoPower.PowerPlants.GasTurbine.Tests.TestGasTurbine,
+         startTime = 0, stopTime = 1, numberOfIntervals = 2,
+         simflags = "-override const.k=1.0");
+print(getErrorString()); print("\n");
+print("P_el           = " + String(val(gasTurbine.P_el, 1.0))            + " W\n");
+print("fuelFlowRate   = " + String(val(gasTurbine.fuelFlowRate, 1.0))    + " kg/s\n");
+print("exhaust m_flow = " + String(-val(gasTurbine.flueGasOut.m_flow, 1.0)) + " kg/s\n");
+print("exhaust T      = " + String(val(gasTurbine.gas.T, 1.0))           + " K\n");
+
+print("\n--- GTLoad = 0.6 ---\n");
+simulate(ThermoPower.PowerPlants.GasTurbine.Tests.TestGasTurbine,
+         startTime = 0, stopTime = 1, numberOfIntervals = 2,
+         simflags = "-override const.k=0.6");
+print(getErrorString()); print("\n");
+print("P_el           = " + String(val(gasTurbine.P_el, 1.0))            + " W\n");
+print("fuelFlowRate   = " + String(val(gasTurbine.fuelFlowRate, 1.0))    + " kg/s\n");
+print("exhaust m_flow = " + String(-val(gasTurbine.flueGasOut.m_flow, 1.0)) + " kg/s\n");
+print("exhaust T      = " + String(val(gasTurbine.gas.T, 1.0))           + " K\n");
+
+print("\n--- GTLoad = 0.3 ---\n");
+simulate(ThermoPower.PowerPlants.GasTurbine.Tests.TestGasTurbine,
+         startTime = 0, stopTime = 1, numberOfIntervals = 2,
+         simflags = "-override const.k=0.3");
+print(getErrorString()); print("\n");
+print("P_el           = " + String(val(gasTurbine.P_el, 1.0))            + " W\n");
+print("fuelFlowRate   = " + String(val(gasTurbine.fuelFlowRate, 1.0))    + " kg/s\n");
+print("exhaust m_flow = " + String(-val(gasTurbine.flueGasOut.m_flow, 1.0)) + " kg/s\n");
+print("exhaust T      = " + String(val(gasTurbine.gas.T, 1.0))           + " K\n");

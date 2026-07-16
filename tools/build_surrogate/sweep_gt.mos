@@ -1,0 +1,40 @@
+// sweep_gt.mos
+// Sweep GTLoad across [0, 1] and write a surrogate table for the simple-cycle
+// gas turbine to /work/data/gas_turbine_surrogate.csv.
+//
+// Defaults follow ThermoPower.PowerPlants.GasTurbine.Examples.GasTurbineSimplified:
+//   - rated power 235 MW
+//   - fuel: natural gas, LHV 49 MJ/kg, nominal flow 12.1 kg/s
+//   - exhaust: nominal 614 kg/s @ 843 K
+//
+// Run from project root:
+//   docker run --rm -v $PWD:/work -w /work \
+//     -e OPENMODELICALIBRARY=/work/tools/build_surrogate/libs \
+//     openmodelica/openmodelica:v1.26.7-minimal \
+//     omc /work/tools/build_surrogate/sweep_gt.mos
+
+loadModel(Modelica, {"3.2.3"});                              getErrorString();
+loadFile("/work/ThermoPower/ThermoPower/package.mo");        getErrorString();
+
+cd("/tmp");
+
+// 21 load points in 0.05 increments across [0, 1].
+loads := {0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
+          0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00};
+
+csv := "GTLoad,P_el_W,fuelFlowRate_kg_s,exhaust_m_flow_kg_s,exhaust_T_K\n";
+
+for ld in loads loop
+  simulate(ThermoPower.PowerPlants.GasTurbine.Tests.TestGasTurbine,
+           startTime = 0, stopTime = 1, numberOfIntervals = 2,
+           simflags = "-override const.k=" + String(ld));
+  csv := csv + String(ld) + "," +
+                String(val(gasTurbine.P_el, 1.0))                  + "," +
+                String(val(gasTurbine.fuelFlowRate, 1.0))          + "," +
+                String(-val(gasTurbine.flueGasOut.m_flow, 1.0))    + "," +
+                String(val(gasTurbine.gas.T, 1.0))                 + "\n";
+end for;
+
+writeFile("/work/data/gas_turbine_surrogate.csv", csv);
+print("Wrote /work/data/gas_turbine_surrogate.csv\n");
+print(csv);
