@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Conda
+.conda/
+envs/
+
+# Modelica build droppings
+*.mat
+!tools/build_surrogate/libs/**/*.mat
+*.bak-mo
+tools/build_surrogate/work/
+tools/build_surrogate/*.log
+
+# Validation/example output (regenerable)
+tools/build_surrogate/validation/
+examples/output/
+
+# Downloaded workload data (regenerable via tools/workload/mitsupercloud_download.py)
+data/dcgm.csv
+data/scheduler_data.csv
+data/nvidia_smi_first_1gb.parquet
+data/*.parquet
+data/dcgm/
+data/scheduler/
+
+# Editor backups
+*~
+*.bak
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
