@@ -1,0 +1,33 @@
+[workspace]
+authors = ["shashankNREL <shashank.yellapantula@nrel.gov>"]
+channels = ["conda-forge"]
+name = "DataCenter"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+smoke = "python tests/smoke_test.py"
+test = "pytest tests/test_dynamics.py tests/test_andes_coupling.py -v"
+vv-crosscheck = "python tools/vv/crosscheck_andes_tgov1.py"
+vv-smallsignal = "python tools/vv/smallsignal.py"
+vv-hannett = "python tools/vv/validate_hannett.py"
+vv-thermo = "python tools/vv/thermo_validation.py"
+vv-all = { depends-on = ["test", "smoke", "vv-crosscheck", "vv-smallsignal", "vv-hannett", "vv-thermo"] }
+lab = "jupyter lab"
+
+[dependencies]
+python = "3.12.*"
+numpy = ">=2.5.1,<3"
+pandas = ">=3.0.3,<4"
+scipy = ">=1.18.0,<2"
+matplotlib = ">=3.11.0,<4"
+pytest = ">=9.1.1,<10"
+ipykernel = ">=7.3.0,<8"
+jupyterlab = ">=4.6.1,<5"
+andes = ">=2.0.0,<3"
+pypdf = ">=6.14.2,<7"
+boto3 = ">=1.43.50,<2"
+pyarrow = ">=25.0.0,<26"
+
+[pypi-dependencies]
+gas-plant = { path = ".", editable = true }

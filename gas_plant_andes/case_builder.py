@@ -165,3 +165,107 @@ def build_islanded_test_case(cfg: IslandedCaseConfig) -> andes.System:
     if not ss.PFlow.converged:
         raise RuntimeError("Power flow did not converge — check case setup")
     return ss
+
+
+def build_islanded_case_v2(cfg: IslandedCaseConfig,
+                           power_factor: float = 0.85,
+                           allow_unsynchronized_reclose: bool = False) -> andes.System:
+    """V&V Phase 3 upgrade of the islanded case.
+
+    Changes vs `build_islanded_test_case` (all found in the V&V critique):
+      - **GENROU** round-rotor machine (6th order) instead of GENCLS, with
+        **EXST1** exciter (the v1 `ExciterDefaults` were dead code: GENCLS
+        cannot take an exciter, so v1 bus voltages were constant-flux
+        artifacts).
+      - **Sn = rated MW / power_factor** (v1 used MW as MVA, silently
+        inflating the effective machine inertia base by 1/PF).
+      - **TGOV1 VMAX on the turbine rating**: VMAX = (rated MW)/Sn = PF pu on
+        the machine base, replacing the v1 VMAX=1.2 (20 % steady overload).
+      - **Reclose guard**: ANDES `Toggle` recloses the tie regardless of the
+        angle/frequency difference across the open breaker — physically a
+        potentially catastrophic out-of-phase reclosure with no sync-check
+        relay modeled. The resync event is therefore DISABLED unless the
+        caller passes `allow_unsynchronized_reclose=True`.
+      - PES-TR1-caveat: ANDES 2.0 ships no GGOV1; TGOV1 is the closest
+        available standard governor. The scipy GGOV1 (gas_plant.dynamics)
+        remains the reference LM2500 governor.
+    """
+    andes.config_logger(stream_level=40)
+
+    ss = andes.System()
+
+    p_plant_pu = cfg.plant_p_mw / cfg.system_mva_base
+    p_load_pu = cfg.data_center_mw / cfg.system_mva_base
+    q_load_pu = cfg.data_center_mvar / cfg.system_mva_base
+
+    rated_mw = _plant_rated_mw(cfg.plant)
+    sn_mva = rated_mw / power_factor
+    vmax_machine_base = rated_mw / sn_mva  # = power_factor
+
+    ss.add('Bus', dict(idx='B_GAS', name='Gas', Vn=cfg.bus_kv))
+    ss.add('Bus', dict(idx='B_DC', name='DataCenter', Vn=cfg.bus_kv))
+    ss.add('Bus', dict(idx='B_GRID', name='Grid', Vn=cfg.bus_kv))
+
+    ss.add('Line', dict(idx='L_LOCAL', bus1='B_GAS', bus2='B_DC',
+                        r=cfg.local_line.r, x=cfg.local_line.x,
+                        b=cfg.local_line.b, Vn1=cfg.bus_kv, Vn2=cfg.bus_kv))
+    ss.add('Line', dict(idx='L_TIE', bus1='B_DC', bus2='B_GRID',
+                        r=cfg.grid.tie_r, x=cfg.grid.tie_x, b=cfg.grid.tie_b,
+                        Vn1=cfg.bus_kv, Vn2=cfg.bus_kv))
+
+    ss.add('PV', dict(idx='G_GAS', bus='B_GAS', p0=p_plant_pu, v0=1.0,
+                      Vn=cfg.bus_kv))
+    ss.add('Slack', dict(idx='G_GRID', bus='B_GRID', p0=0.0, v0=1.0,
+                         Vn=cfg.bus_kv))
+    ss.add('PQ', dict(idx='LD_DC', bus='B_DC', p0=p_load_pu, q0=q_load_pu,
+                      Vn=cfg.bus_kv))
+
+    # GENROU with textbook round-rotor parameters (Kundur Table 4.2 class)
+    ss.add('GENROU', dict(
+        idx='SYN_GAS', bus='B_GAS', gen='G_GAS',
+        Sn=sn_mva, Vn=cfg.bus_kv,
+        M=2.0 * cfg.machine.H_s, D=cfg.machine.D,
+        xd=1.8, xq=1.7, xd1=0.3, xq1=0.55, xd2=0.25, xq2=0.25,
+        xl=0.15, ra=0.0,
+        Td10=8.0, Tq10=0.4, Td20=0.03, Tq20=0.05,
+    ))
+    ss.add('TGOV1', dict(
+        idx='TG_GAS', syn='SYN_GAS',
+        R=cfg.governor.R,
+        T1=cfg.governor.T1, T2=cfg.governor.T2, T3=cfg.governor.T3,
+        Dt=cfg.governor.Dt,
+        VMAX=vmax_machine_base, VMIN=cfg.governor.VMIN,
+    ))
+    ss.add('EXST1', dict(
+        idx='EX_GAS', syn='SYN_GAS',
+        TR=cfg.exciter.TR, KA=cfg.exciter.KA, TA=cfg.exciter.TA,
+        VRMAX=cfg.exciter.VRMAX, VRMIN=cfg.exciter.VRMIN,
+    ))
+
+    ss.add('BusFreq', dict(idx='F_GAS', bus='B_GAS'))
+    ss.add('BusFreq', dict(idx='F_DC', bus='B_DC'))
+
+    if cfg.island_time_s is not None:
+        ss.add('Toggle', dict(model='Line', dev='L_TIE', t=cfg.island_time_s))
+    if cfg.resync_time_s is not None:
+        if allow_unsynchronized_reclose:
+            ss.add('Toggle', dict(model='Line', dev='L_TIE',
+                                  t=cfg.resync_time_s))
+        else:
+            import warnings
+            warnings.warn(
+                "resync_time_s set but no sync-check relay is modeled; "
+                "an out-of-phase reclosure would be a catastrophic event. "
+                "Pass allow_unsynchronized_reclose=True to force it "
+                "(results after reclose are then illustrative only).")
+
+    for t_step, new_p_mw in cfg.load_step_events:
+        new_p_pu = new_p_mw / cfg.system_mva_base
+        ss.add('Alter', dict(model='PQ', dev='LD_DC', src='Ppf', attr='v',
+                             t=t_step, method='=', amount=new_p_pu))
+
+    ss.setup()
+    ss.PFlow.run()
+    if not ss.PFlow.converged:
+        raise RuntimeError("Power flow did not converge — check case setup")
+    return ss

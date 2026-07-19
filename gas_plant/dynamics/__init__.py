@@ -9,10 +9,12 @@ Modules:
              fuel-from-valve, event-driven integration). Drop-in replacement
              for the inline ODE in notebooks/lm2500_model.ipynb cells 25-27.
 
-Future modules:
-    ggov1       - Tier B: IEEE PES-TR1 GGOV1 governor.
-    multishaft  - Tier C: two-mass shaft + single-axis machine via ANDES.
-    torsional   - Tier E: three-mass torsional shaft for fatigue.
+    ggov1  - Tier B: IEEE PES-TR1 GGOV1 governor (turbine-MW base) —
+             the REFERENCE governor model.
+    multishaft - Tier C: two-mass gas-path model on top of GGOV1.
+    torsional  - Tier E: 2-mass PT-gen torsional shaft + rainflow/Miner.
+    rowen  - Rowen/Hannett Fig-1/2 model, for literature cross-validation
+             only (tools/vv/validate_hannett.py).
 """
 
 from .tgov1 import (
@@ -33,6 +35,11 @@ from .multishaft import (
     MultishaftState,
     MultishaftResult,
     simulate_multishaft,
+)
+from .rowen import (
+    RowenParams,
+    RowenResult,
+    simulate_rowen,
 )
 from .torsional import (
     TorsionalParams,
@@ -57,6 +64,9 @@ __all__ = [
     "MultishaftState",
     "MultishaftResult",
     "simulate_multishaft",
+    "RowenParams",
+    "RowenResult",
+    "simulate_rowen",
     "TorsionalParams",
     "compute_shaft_torques",
     "rainflow_count",

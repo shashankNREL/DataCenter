@@ -1,35 +1,42 @@
-"""Tier A: cleaned-up swing-equation + TGOV1 governor for the LM2500.
+"""Tier A (legacy): swing equation + standard TGOV1 governor for the LM2500.
 
-Bug-fixes applied relative to the inline ODE in notebooks/lm2500_model.ipynb
-cells 25-27 (per docs/tier_plan.md, Tier A change log):
+V&V Phase 0 restructure (see docs/vv_log.md, fix G4): the block layout now
+matches the standard TGOV1 exactly (PES-TR1 §2.2 / PSS/E):
 
-  A1  Anti-windup on the governor lag state x1 when P_valve clips.
-  A2  Valve rate limit (P_valve becomes a state, dP_valve/dt clipped).
-  A3  Frequency-dependent load damping: Pe(t,omega) = Pe_load(t) * (1 + alpha*(omega-1)).
-  A4  VMAX rebased so the valve cannot exceed the turbine thermal limit
-      (0.957 pu on the 23 MVA generator base, i.e. 22 MW).
-  A5  Fuel computed from the valve command (with a separate combustor lag),
-      NOT from Pm.  Removes the double-counted turbine dynamics.
-  A6  Event-driven integration: solve the ODE chunk-by-chunk between Load17
-      sample times so the solver never straddles a ZOH discontinuity.
+                 1                (1 + s T2)
+  (Pref - dw)/R ----> [ 1/(1+sT1) ] --clip[VMIN,VMAX]--> [ ---------- ] --> Pm
+                       (valve, non-windup limits          (1 + s T3)
+                        + optional rate limit)                    - Dt*dw
 
-The original Tier-0 (baseline) behavior is preserved if you set
-    use_anti_windup = False
-    use_valve_rate_limit = False
-    alpha_load_damping = 0.0
-    vmax_pu = 1.1
-    vmin_pu = 0.0
-    fuel_from_valve = False
-    chunked = False
-in TGOV1Params - useful for A/B diff plots.
+The pre-fix implementation applied a (1+sT2)/(1+sT1) lead-lag, clipped its
+OUTPUT, then rate-limited through an extra first-order chase with time
+constant T1 — introducing a spurious second pole at 1/T1 that standard
+TGOV1 does not have, and placing the limiter at a nonstandard location.
+Both defects are removed. The valve state itself now carries the
+VMIN/VMAX non-windup limits (which IS the standard anti-windup — the
+separate `use_anti_windup` flag is gone) and the optional rate limit acts
+directly on dvalve/dt.
 
-State vector (in order):
-    delta    - rotor angle (rad)
-    omega    - rotor speed, per-unit on omega_0 = 2*pi*60 rad/s
-    x1       - governor lag state (pu, governor MW base)
-    P_valve  - fuel-valve command after rate limit (pu)        [A2]
-    P_fuel   - filtered valve, the signal that feeds dispatch  [A5]
-    Pm       - mechanical power output of the turbine (pu)
+Per-unit base: generator MVA (Sn_mva) throughout — valid for TGOV1 because
+its implicit turbine gain is 1 (valve pu = power pu), so VMAX = 22/23
+genuinely caps Pm at the 22 MW turbine rating. TGOV1 is retained as the
+LEGACY Tier A model; GGOV1 (turbine-base, PES-TR1 §3.3) is the reference
+governor.
+
+Retained Tier-A behaviors:
+  A2  Valve rate limit (optional, on dvalve/dt)
+  A3  Frequency-dependent load damping Pe = Pe_load*(1 + alpha*(w-1))
+  A5  Fuel reported through a separate combustor lag on the valve signal
+  A6  Event-driven (chunked) integration across load-step boundaries
+
+State vector (5 states):
+    delta    rotor angle (rad)
+    omega    rotor speed (pu on 2*pi*60)
+    valve    governor/valve state after 1/(1+sT1), non-windup [VMIN,VMAX]
+    x2       turbine lead-lag state (T3 lag)
+    P_fuel   combustor lag on valve (fuel reporting)
+
+Pm is algebraic: Pm = x2 + (T2/T3)*(valve - x2) - Dt*(omega - 1).
 """
 
 from __future__ import annotations
@@ -48,46 +55,60 @@ from scipy.integrate import solve_ivp
 
 @dataclass
 class TGOV1Params:
-    """Per-unit parameters for the cleaned-up LM2500 TGOV1 model.
+    """Per-unit parameters for the standard-structure TGOV1 LM2500 model.
 
-    Per-unit base is the generator MVA (`Sn_mva`), so all power-like signals
-    (Pm, Pe, P_valve, etc.) are in pu on `Sn_mva`.
-
-    Defaults match the original notebook (cell 25) except where annotated [Ai].
+    Per-unit base is the generator MVA (`Sn_mva`); TGOV1's implicit turbine
+    gain of 1 makes valve pu = power pu on that base.
     """
 
     # ----- Machine -----
     Sn_mva: float = 23.0      # generator MVA base
-    H_s: float = 2.8          # inertia constant (s)
-    D_pu: float = 1.0         # lumped electromechanical damping (pu/pu)
+    H_s: float = 2.8          # inertia constant (s) — status ESTIMATED
+    # D = 0: load damping is modeled explicitly via alpha_load_damping
+    # (V&V fix G5 — avoids double counting).
+    D_pu: float = 0.0
 
-    # ----- Turbine thermal rating (for VMAX rebase, A4) -----
-    P_turbine_mw: float = 22.0  # LM2500 base thermal/shaft rating
+    # ----- Turbine rating (for VMAX rebase) -----
+    P_turbine_mw: float = 22.0  # LM2500 base rating
 
-    # ----- Governor -----
+    # ----- Governor / turbine -----
     R_droop: float = 0.04     # 4 % droop (aero islanded)
-    T1_s: float = 0.15        # governor lag (fast electronic valve)
-    T2_s: float = 0.30        # lead time constant
-    T3_s: float = 1.50        # turbine gas-fill lag
+    T1_s: float = 0.15        # governor/valve lag
+    T2_s: float = 0.30        # turbine lead
+    T3_s: float = 1.50        # turbine lag (gas-fill)
+    Dt_pu: float = 0.0        # turbine damping (standard TGOV1 Dt)
 
-    # ----- Fuel-valve limits -----
-    vmax_pu: float = 22.0 / 23.0  # [A4] turbine thermal limit on gen base
-    vmin_pu: float = 0.15         # engine lean-blowout floor
+    # ----- Valve limits (valid as POWER limits here: implicit Kturb = 1) -----
+    vmax_pu: float = 22.0 / 23.0  # turbine rating on gen base
+    vmin_pu: float = 0.15         # engine lean-blowout floor (= 3.45 MW)
 
-    # ----- Tier A additions -----
-    use_anti_windup: bool = True      # [A1]
-    use_valve_rate_limit: bool = True # [A2]
-    vrmax_pu_s: float = 0.10          # [A2] valve open-rate limit (pu/s)
-    vrmin_pu_s: float = -0.10         # [A2] valve close-rate limit (pu/s)
-    alpha_load_damping: float = 1.5   # [A3] frequency-dependent load damping
-    fuel_from_valve: bool = True      # [A5] fuel = f(P_fuel), not f(Pm)
-    T_comb_s: float = 0.30            # [A5] combustor + fuel-injection lag
-    chunked: bool = True              # [A6] event-driven integration
+    # ----- Options -----
+    # Standard TGOV1 has NO valve rate limit. Enabling one here places a
+    # slew limiter inside the single-lag droop loop; at LM2500-like gains
+    # (R=0.04, T1=0.15) that produces a sustained slew-induced limit cycle
+    # (~ +/-1.3 Hz observed) — a known describing-function instability, not
+    # a numerical artifact. Rate-limited fuel dynamics belong to GGOV1,
+    # where the MaxERR/MinERR clamp bounds the commanded rate. Default OFF
+    # (V&V Phase 0; see docs/vv_log.md, deviation D5).
+    use_valve_rate_limit: bool = False
+    vrmax_pu_s: float = 0.10          # valve open-rate limit (pu/s)
+    vrmin_pu_s: float = -0.10         # valve close-rate limit (pu/s)
+    alpha_load_damping: float = 1.5   # Kundur §11.1.4 typical
+    T_comb_s: float = 0.30            # combustor + fuel-injection lag
+    chunked: bool = True              # event-driven integration
+    # Swing-equation formulation. False (default): power form,
+    # M dw/dt = Pm - Pe. True: strict torque form M dw/dt = (Pm - Pe)/w.
+    # V&V NOTE: ANDES GENCLS uses the standard speed-voltage approximation
+    # (stator flux at w = 1), under which tau_e = Pe and the governor
+    # output enters tm one-to-one — i.e. ANDES's effective swing equation
+    # IS the power form. The cross-check (tools/vv/crosscheck_andes_tgov1.py)
+    # therefore runs with torque_form=False and matches ANDES to ~1 mHz.
+    torque_form: bool = False
 
     # ----- Integrator -----
-    rtol: float = 1e-4
-    atol: float = 1e-6
-    max_step_s: float = 1.0
+    rtol: float = 1e-6
+    atol: float = 1e-8
+    max_step_s: float = 0.5
 
     # ----- Derived (cached) -----
     omega_0_rad_s: float = field(default=2.0 * np.pi * 60.0, init=False)
@@ -99,31 +120,30 @@ class TGOV1Params:
 
 @dataclass
 class TGOV1State:
-    """Initial / instantaneous ODE state, in the per-unit base of TGOV1Params."""
+    """ODE state, per-unit on Sn_mva."""
 
-    delta: float = 0.0       # rotor angle (rad)
-    omega: float = 1.0       # speed (pu)
-    x1: float = 0.0          # governor lag state (pu)
-    P_valve: float = 0.0     # valve command (pu)
-    P_fuel: float = 0.0      # filtered valve / combustor state (pu)
-    Pm: float = 0.0          # mechanical power (pu)
+    delta: float = 0.0
+    omega: float = 1.0
+    valve: float = 0.0
+    x2: float = 0.0
+    P_fuel: float = 0.0
 
     def as_array(self) -> np.ndarray:
-        return np.array([self.delta, self.omega, self.x1,
-                         self.P_valve, self.P_fuel, self.Pm], dtype=float)
+        return np.array([self.delta, self.omega, self.valve,
+                         self.x2, self.P_fuel], dtype=float)
 
     @classmethod
     def from_array(cls, y: np.ndarray) -> "TGOV1State":
-        return cls(delta=float(y[0]), omega=float(y[1]), x1=float(y[2]),
-                   P_valve=float(y[3]), P_fuel=float(y[4]), Pm=float(y[5]))
+        return cls(delta=float(y[0]), omega=float(y[1]), valve=float(y[2]),
+                   x2=float(y[3]), P_fuel=float(y[4]))
 
 
 @dataclass
 class TGOV1Result:
-    """Time-resolved simulation result on a uniform 1 s grid (or as requested).
+    """Time-resolved simulation result on a uniform grid.
 
-    All physical-unit columns are derived after the ODE solve. `*_pu` columns
-    are on Sn_mva = generator base.
+    `Pe_mw` is the ACTUAL electrical power including load damping;
+    `Pe_demand_mw` is the raw ZOH demand.
     """
 
     t_s: np.ndarray
@@ -135,10 +155,10 @@ class TGOV1Result:
     Pm_pu: np.ndarray
     Pe_mw: np.ndarray
     Pe_pu: np.ndarray
-    P_valve_pu: np.ndarray
+    Pe_demand_mw: np.ndarray
+    valve_pu: np.ndarray
     P_fuel_pu: np.ndarray
-    x1_pu: np.ndarray
-    fuel_kg_s: Optional[np.ndarray] = None   # filled by post-processing
+    fuel_kg_s: Optional[np.ndarray] = None
     cum_fuel_kg: Optional[np.ndarray] = None
 
     def as_dataframe(self) -> pd.DataFrame:
@@ -152,9 +172,9 @@ class TGOV1Result:
             "Pm_pu": self.Pm_pu,
             "Pe_mw": self.Pe_mw,
             "Pe_pu": self.Pe_pu,
-            "P_valve_pu": self.P_valve_pu,
+            "Pe_demand_mw": self.Pe_demand_mw,
+            "valve_pu": self.valve_pu,
             "P_fuel_pu": self.P_fuel_pu,
-            "x1_pu": self.x1_pu,
         }
         if self.fuel_kg_s is not None:
             cols["fuel_kg_s"] = self.fuel_kg_s
@@ -167,82 +187,46 @@ class TGOV1Result:
 # RHS
 # ---------------------------------------------------------------------------
 
+def _pm_algebraic(valve: np.ndarray, x2: np.ndarray, omega: np.ndarray,
+                  p: TGOV1Params) -> np.ndarray:
+    """Pm = lead-lag output - Dt*dw (works on scalars and arrays)."""
+    return x2 + (p.T2_s / p.T3_s) * (valve - x2) - p.Dt_pu * (omega - 1.0)
+
+
 def _rhs_factory(params: TGOV1Params, Pref: float, Pe_load_pu: float) -> Callable:
-    """Build the RHS closure for a constant-load chunk.
-
-    `Pe_load_pu` is the LOAD17 demand on this interval (constant within the
-    chunk; the event-driven outer loop swaps it between chunks).
-    `Pref` is the governor power reference (set to the initial steady-state
-    Pe so the steady-state error is zero at t=0).
-    """
-
-    R = params.R_droop
-    T1 = params.T1_s
-    T2 = params.T2_s
-    T3 = params.T3_s
-    M = params.M_pu_s
-    D = params.D_pu
-    omega_0 = params.omega_0_rad_s
-    vmax = params.vmax_pu
-    vmin = params.vmin_pu
-    vrmax = params.vrmax_pu_s
-    vrmin = params.vrmin_pu_s
-    alpha = params.alpha_load_damping
-    T_comb = params.T_comb_s
-    use_rate_limit = params.use_valve_rate_limit
-    use_anti_windup = params.use_anti_windup
+    """Build the RHS closure for a constant-load chunk."""
+    p = params
 
     def rhs(t: float, y: np.ndarray) -> np.ndarray:
-        delta, omega, x1, P_valve, P_fuel, Pm = y
+        delta, omega, valve, x2, P_fuel = y
 
-        # ---- [A3] Frequency-dependent load damping ----
-        # Pe rises (slightly) as ω rises; falls as ω drops. Worst case
-        # alpha=0 reproduces the original constant-power load.
-        Pe = Pe_load_pu * (1.0 + alpha * (omega - 1.0))
+        # ---- Load with frequency damping ----
+        Pe = Pe_load_pu * (1.0 + p.alpha_load_damping * (omega - 1.0))
+
+        # ---- Governor: droop input through 1/(1+sT1) ----
+        gov_in = Pref + (1.0 - omega) / p.R_droop
+        dvalve = (gov_in - valve) / p.T1_s
+        if p.use_valve_rate_limit:
+            dvalve = float(np.clip(dvalve, p.vrmin_pu_s, p.vrmax_pu_s))
+        # Non-windup position limits on the valve state (standard TGOV1)
+        if (valve >= p.vmax_pu and dvalve > 0) or (valve <= p.vmin_pu and dvalve < 0):
+            dvalve = 0.0
+
+        # ---- Turbine lead-lag (1+sT2)/(1+sT3) ----
+        dx2 = (valve - x2) / p.T3_s
+        Pm = _pm_algebraic(valve, x2, omega, p)
 
         # ---- Swing equation ----
-        domega = (Pm - Pe - D * (omega - 1.0)) / M
-        ddelta = omega_0 * (omega - 1.0)
-
-        # ---- TGOV1 governor: lead-lag through x1 ----
-        gov_input = Pref + (1.0 - omega) / R
-        dx1_unsat = (gov_input - x1) / T1
-
-        # Lead-lag output (the would-be valve command before clip / rate-limit)
-        P_valve_target = x1 + T2 * dx1_unsat
-
-        # ---- [A1] Anti-windup ----
-        # If the target is outside [vmin, vmax] AND would push us further out,
-        # freeze x1.
-        P_valve_target_clipped = np.clip(P_valve_target, vmin, vmax)
-        saturating_up = (P_valve_target > vmax) and (dx1_unsat > 0)
-        saturating_dn = (P_valve_target < vmin) and (dx1_unsat < 0)
-        if use_anti_windup and (saturating_up or saturating_dn):
-            dx1 = 0.0
+        if p.torque_form:
+            domega = ((Pm - Pe) / omega - p.D_pu * (omega - 1.0)) / p.M_pu_s
         else:
-            dx1 = dx1_unsat
+            domega = (Pm - Pe - p.D_pu * (omega - 1.0)) / p.M_pu_s
+        ddelta = p.omega_0_rad_s * (omega - 1.0)
 
-        # ---- [A2] Valve rate limit ----
-        # P_valve is now a STATE: dP_valve/dt = clip(rate toward target, [vrmin, vrmax]).
-        # The first-order pursuit toward P_valve_target_clipped is hand-tuned
-        # so that, without rate-limit clipping, P_valve == P_valve_target.
-        if use_rate_limit:
-            # Rate to instantaneously hit the (clipped) target this step:
-            # treat as an algebraic-loop-friendly first-order chase.
-            rate_unconstrained = (P_valve_target_clipped - P_valve) / max(T1, 1e-6)
-            dP_valve = float(np.clip(rate_unconstrained, vrmin, vrmax))
-        else:
-            # No rate-limit mode: P_valve algebraically equals the target.
-            # We still keep P_valve as a state but force it to track exactly.
-            dP_valve = (P_valve_target_clipped - P_valve) / max(T1 * 0.1, 1e-6)
+        # ---- Combustor lag for fuel reporting ----
+        dP_fuel = (valve - P_fuel) / p.T_comb_s
 
-        # ---- [A5] Fuel signal: separate combustor lag from P_valve ----
-        # P_fuel tracks P_valve through a fast combustor + fuel-injection lag.
-        # Mechanical power Pm tracks P_valve through the slower turbine lag T3.
-        dP_fuel = (P_valve - P_fuel) / T_comb
-        dPm = (P_valve - Pm) / T3
-
-        return np.array([ddelta, domega, dx1, dP_valve, dP_fuel, dPm])
+        return np.array([ddelta, domega, dvalve, dx2, dP_fuel])
 
     return rhs
 
@@ -258,23 +242,7 @@ def simulate_tgov1(
     sample_dt_s: float = 1.0,
     dispatch_fn: Optional[Callable[[np.ndarray], dict]] = None,
 ) -> TGOV1Result:
-    """Run the Tier-A TGOV1 ODE over a Load17-style step profile.
-
-    Args:
-        load_time_s:    1-D array of demand sample times (seconds, increasing).
-        load_demand_mw: 1-D array of demand in MW at each sample time.
-                        Treated as a zero-order-hold signal between samples.
-        params:         TGOV1Params (defaults match the cleaned-up Tier A model).
-        sample_dt_s:    Output uniform grid spacing for the returned result.
-        dispatch_fn:    Optional callable `dispatch(load_frac_array) -> dict`
-                        (matching gas_plant.GasTurbinePlant.dispatch interface)
-                        used to compute fuel_kg_s and cum_fuel_kg from the
-                        per-unit fuel signal (Tier A wires this to P_fuel,
-                        not Pm — A5).
-
-    Returns:
-        TGOV1Result with everything in physical units + per-unit columns.
-    """
+    """Run the standard-structure TGOV1 ODE over a ZOH load profile (MW)."""
 
     load_time_s = np.asarray(load_time_s, dtype=float)
     load_demand_mw = np.asarray(load_demand_mw, dtype=float)
@@ -282,65 +250,66 @@ def simulate_tgov1(
         raise ValueError("load_time_s and load_demand_mw must be the same shape")
     if not np.all(np.diff(load_time_s) > 0):
         raise ValueError("load_time_s must be strictly increasing")
+    if load_time_s.size < 2:
+        raise ValueError("need at least two load samples")
 
-    Sn = params.Sn_mva
+    p = params
+    Sn = p.Sn_mva
     load_pu = load_demand_mw / Sn
 
-    # Extend the start to t = 0 (use the first sample as the preamble).
     if load_time_s[0] > 0:
         load_time_s = np.concatenate([[0.0], load_time_s])
         load_pu = np.concatenate([[load_pu[0]], load_pu])
 
     # ---- Initial condition: steady state at the first load point ----
     Pe0 = float(load_pu[0])
-    if Pe0 > params.vmax_pu:
+    if Pe0 > p.vmax_pu:
         raise ValueError(
-            f"Initial load {Pe0 * Sn:.2f} MW exceeds turbine thermal rating "
-            f"{params.vmax_pu * Sn:.2f} MW. Refusing to start above VMAX."
+            f"Initial load {Pe0 * Sn:.2f} MW exceeds turbine rating "
+            f"{p.vmax_pu * Sn:.2f} MW. Refusing to start above VMAX."
         )
-    Pref = Pe0  # governor reference frozen at initial steady-state
-    state = TGOV1State(
-        delta=0.0, omega=1.0,
-        x1=Pe0, P_valve=Pe0, P_fuel=Pe0, Pm=Pe0,
-    )
+    if Pe0 < p.vmin_pu:
+        raise ValueError(
+            f"Initial load {Pe0 * Sn:.2f} MW is below the minimum-fuel floor "
+            f"{p.vmin_pu * Sn:.2f} MW."
+        )
+    Pref = Pe0
+    state = TGOV1State(delta=0.0, omega=1.0, valve=Pe0, x2=Pe0, P_fuel=Pe0)
 
-    # ---- Outer event-driven loop [A6] ----
-    if params.chunked:
-        t_eval = np.arange(0.0, load_time_s[-1] + sample_dt_s, sample_dt_s)
-        y_eval = np.empty((6, t_eval.size), dtype=float)
-        y_eval[:, 0] = state.as_array()
-        eval_idx = 1
+    t_eval = np.arange(0.0, load_time_s[-1] + sample_dt_s, sample_dt_s)
+    t_eval = t_eval[t_eval <= load_time_s[-1] + 1e-9]
+    y_eval = np.empty((5, t_eval.size), dtype=float)
+    y_eval[:, 0] = state.as_array()
+    demand_pu_eval = np.empty(t_eval.size, dtype=float)
+    demand_pu_eval[0] = Pe0
+    eval_idx = 1
 
+    if p.chunked:
+        sol = None
         for k in range(load_time_s.size - 1):
             t0 = float(load_time_s[k])
             t1 = float(load_time_s[k + 1])
             Pe_chunk = float(load_pu[k])
-
-            rhs = _rhs_factory(params, Pref, Pe_chunk)
+            rhs = _rhs_factory(p, Pref, Pe_chunk)
             sol = solve_ivp(
                 rhs, (t0, t1), state.as_array(),
                 method="RK45",
-                max_step=params.max_step_s,
-                rtol=params.rtol, atol=params.atol,
+                max_step=p.max_step_s,
+                rtol=p.rtol, atol=p.atol,
                 dense_output=True,
             )
             if not sol.success:
                 raise RuntimeError(f"solve_ivp failed in [{t0}, {t1}]: {sol.message}")
-
-            # Sample any t_eval points that lie strictly within this chunk
             while eval_idx < t_eval.size and t_eval[eval_idx] <= t1 + 1e-9:
                 y_eval[:, eval_idx] = sol.sol(t_eval[eval_idx])
+                demand_pu_eval[eval_idx] = Pe_chunk
                 eval_idx += 1
-
-            # Pass the final state as the next chunk's IC
             state = TGOV1State.from_array(sol.y[:, -1])
-
-        # Pad any trailing eval points
         while eval_idx < t_eval.size:
-            y_eval[:, eval_idx] = sol.sol(t_eval[eval_idx])
+            y_eval[:, eval_idx] = sol.sol(min(t_eval[eval_idx], load_time_s[-1]))
+            demand_pu_eval[eval_idx] = float(load_pu[-2])
             eval_idx += 1
     else:
-        # ---- Baseline path: one solve with ZOH interpolation ----
         from scipy.interpolate import interp1d
         Pe_interp = interp1d(
             load_time_s, load_pu, kind="zero",
@@ -348,40 +317,35 @@ def simulate_tgov1(
         )
 
         def rhs_baseline(t: float, y: np.ndarray) -> np.ndarray:
-            return _rhs_factory(params, Pref, float(Pe_interp(t)))(t, y)
+            return _rhs_factory(p, Pref, float(Pe_interp(t)))(t, y)
 
-        t_eval = np.arange(0.0, load_time_s[-1] + sample_dt_s, sample_dt_s)
         sol = solve_ivp(
             rhs_baseline, (0.0, float(load_time_s[-1])), state.as_array(),
             method="RK45",
-            max_step=params.max_step_s,
-            rtol=params.rtol, atol=params.atol,
+            max_step=p.max_step_s,
+            rtol=p.rtol, atol=p.atol,
             dense_output=True,
         )
         if not sol.success:
             raise RuntimeError(f"baseline solve_ivp failed: {sol.message}")
         y_eval = sol.sol(t_eval)
+        demand_pu_eval = np.asarray(Pe_interp(t_eval), dtype=float)
 
     # ---- Post-process into physical units ----
     delta_rad = y_eval[0]
     omega_pu = y_eval[1]
-    x1_pu = y_eval[2]
-    P_valve_pu = y_eval[3]
+    valve_pu = y_eval[2]
+    x2 = y_eval[3]
     P_fuel_pu = y_eval[4]
-    Pm_pu = y_eval[5]
 
     freq_hz = omega_pu * 60.0
     speed_rpm = freq_hz * 60.0
+    Pm_pu = _pm_algebraic(valve_pu, x2, omega_pu, p)
     Pm_mw = Pm_pu * Sn
 
-    # Build Pe(t) on the eval grid (ZOH) for diagnostics
-    Pe_mw = np.empty_like(t_eval)
-    k = 0
-    for i, t in enumerate(t_eval):
-        while k + 1 < load_time_s.size and load_time_s[k + 1] <= t:
-            k += 1
-        Pe_mw[i] = load_pu[k] * Sn
-    Pe_pu = Pe_mw / Sn
+    Pe_pu = demand_pu_eval * (1.0 + p.alpha_load_damping * (omega_pu - 1.0))
+    Pe_mw = Pe_pu * Sn
+    Pe_demand_mw = demand_pu_eval * Sn
 
     result = TGOV1Result(
         t_s=t_eval,
@@ -393,17 +357,15 @@ def simulate_tgov1(
         Pm_pu=Pm_pu,
         Pe_mw=Pe_mw,
         Pe_pu=Pe_pu,
-        P_valve_pu=P_valve_pu,
+        Pe_demand_mw=Pe_demand_mw,
+        valve_pu=valve_pu,
         P_fuel_pu=P_fuel_pu,
-        x1_pu=x1_pu,
     )
 
-    # ---- [A5] Fuel from the valve, not Pm ----
+    # ---- Fuel: valve pu = power pu here (implicit Kturb = 1), so the
+    #      surrogate load-fraction mapping is valid as-is ----
     if dispatch_fn is not None:
-        fuel_signal_pu = P_fuel_pu if params.fuel_from_valve else Pm_pu
-        # Convert to load fraction on the turbine's surrogate base.
-        # P_turbine_mw is the surrogate's rated power.
-        load_frac = np.clip(fuel_signal_pu * Sn / params.P_turbine_mw, 0.0, 1.0)
+        load_frac = np.clip(P_fuel_pu * Sn / p.P_turbine_mw, 0.0, 1.0)
         disp = dispatch_fn(load_frac)
         result.fuel_kg_s = np.asarray(disp["fuel_kg_s"], dtype=float)
         result.cum_fuel_kg = np.concatenate(

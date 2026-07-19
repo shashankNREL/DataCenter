@@ -164,6 +164,7 @@ class LM9000SimpleCycle:
         exhaust_temp_k: float = SIMPLE_CYCLE_EXHAUST_TEMP_K,
         air_fuel_ratio: float = DEFAULT_AIR_FUEL_RATIO,
         min_load_frac: float = 0.0,
+        no_load_fuel_frac: float = 0.2,
     ):
         """
         Args:
@@ -179,6 +180,9 @@ class LM9000SimpleCycle:
                 power, zero fuel and undefined efficiency. Defaults to 0 to
                 preserve historical behavior; set to LPC_MAP.min_load_frac
                 (0.15) for a physically meaningful operating envelope.
+            no_load_fuel_frac: no-load fuel flow as a fraction of full-load
+                fuel flow (Willans-line intercept). Default 0.2, consistent
+                with the GGOV1 `Wfnl` typical value (PES-TR1 Appendix C).
         """
         self.rated_power_mw = float(rated_power_mw)
         self.fuel_lhv_j_kg = float(fuel_lhv_j_kg)
@@ -188,16 +192,21 @@ class LM9000SimpleCycle:
         self.air_fuel_ratio = float(air_fuel_ratio)
         self.min_load_frac = float(min_load_frac)
 
+        self.no_load_fuel_frac = float(no_load_fuel_frac)
+
         # Design-point efficiency (from table: 39.52% for 56.723 MW)
         self._design_efficiency = 0.3952
 
-        # Build part-load behavior via polynomial fit
-        # At full load: 56.723 MW, eff 39.52%
-        # At part load: efficiency typically dips slightly then recovers
-        # Use quadratic: eta(load) = -0.02*(load-1)^2 + 0.3952
-        # Expanded: -0.02*load^2 + 0.04*load + 0.3752
-        # This gives eta(1.0) = 0.3952 and smooth part-load behavior
-        self._part_load_efficiency_poly = np.poly1d([-0.02, 0.04, 0.3752])
+        # Part-load efficiency via the WILLANS LINE (V&V Phase 0, fix P1):
+        # fuel flow is affine in load, fuel(L) = fuel_fl*(b + (1-b)*L) with
+        # no-load intercept b = no_load_fuel_frac. Then
+        #     eta(L) = eta_fl * L / (b + (1-b)*L).
+        # This replaces the former quadratic eta = -0.02*(L-1)^2 + 0.3952,
+        # which gave 39.0% at 50% load and 37.5% at zero load — unphysical
+        # (real aeroderivatives are ~32-34% at half load and collapse toward
+        # idle). Willans gives eta(0.5) = 0.329, eta(0.2) = 0.220 for b=0.2,
+        # consistent with the ThermoPower surrogate's part-load shape and
+        # with the GGOV1 Wfnl no-load-fuel convention.
 
     def dispatch(self, load: ArrayLike) -> dict:
         """Evaluate plant outputs at the given load setpoint(s).
@@ -225,12 +234,11 @@ class LM9000SimpleCycle:
         # fuel, and a clearly-zero efficiency (not a polynomial extrapolation).
         engine_on = arr >= self.min_load_frac
 
-        # Part-load efficiency curve (only where engine is on)
-        efficiency = np.where(
-            engine_on,
-            np.clip(self._part_load_efficiency_poly(arr), 0.20, 0.45),
-            0.0,
-        )
+        # Willans-line part-load efficiency (only where engine is on)
+        b = self.no_load_fuel_frac
+        with np.errstate(divide="ignore", invalid="ignore"):
+            eta_willans = self._design_efficiency * arr / (b + (1.0 - b) * arr)
+        efficiency = np.where(engine_on & (arr > 0), eta_willans, 0.0)
 
         # Power scales linearly with load and efficiency
         power_w = np.where(engine_on, arr * self.rated_power_mw * 1e6, 0.0)
@@ -391,8 +399,11 @@ class LM9000CombinedCycle:
 
         # Linear derate of bottoming efficiency with exhaust temperature.
         # Note: this is a LINEAR derate, not true Carnot (which would be
-        # 1 - T_cold/T_hot). It's a fit form and is what PES-TR1 / CIGRE
-        # 238 use for simple bottoming-cycle models.
+        # 1 - T_cold/T_hot). It is a pragmatic fit form chosen for this
+        # model. (CIGRE TB 238 models steam power as a lagged function of
+        # GT exhaust ENERGY, not a linear-in-dT efficiency scaler — the
+        # earlier comment claiming this form came from PES-TR1/CIGRE was
+        # wrong and is retracted; V&V fix P4.)
         dT_nom = self.T_exh_nominal_K - self.T_stack_K
         eta_bottoming = self.eta_bottoming_nominal * np.where(
             dT_hrsg > 0, dT_hrsg / dT_nom, 0.0

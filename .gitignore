@@ -37,3 +37,6 @@ data/scheduler/
 .DS_Store
 .idea/
 .vscode/
+# pixi environments
+.pixi/*
+!.pixi/config.toml

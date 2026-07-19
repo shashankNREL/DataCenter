@@ -218,9 +218,13 @@ def test_lm9000_combined_cycle_part_load():
     # Power should be monotone increasing
     assert np.all(np.diff(r["power_w"]) >= 0), "Power not monotone increasing"
     
-    # Efficiency should stay in reasonable range for CC
-    assert np.all(r["efficiency"] > 0.4) and np.all(r["efficiency"] < 0.55), \
+    # Efficiency should degrade toward part load (Willans-line GT, V&V fix
+    # P1) and stay in a physical CC range. The former assertion (> 0.4 at
+    # 20 % load) encoded the old, unphysically flat quadratic.
+    assert np.all(np.diff(r["efficiency"]) > 0), "CC efficiency not increasing with load"
+    assert np.all(r["efficiency"] > 0.30) and np.all(r["efficiency"] < 0.55), \
         f"Efficiency out of range: {r['efficiency']}"
+    assert 0.50 < r["efficiency"][-1] < 0.51, "full-load CC efficiency drifted"
     
     print(f"  LM9000 Combined Cycle part-load sweep:")
     for load, p, eff in zip(loads, r["power_w"] / 1e6, r["efficiency"]):
