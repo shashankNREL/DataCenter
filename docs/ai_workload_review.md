@@ -297,6 +297,43 @@ unit-to-unit sharing imbalance is not modeled), multi-unit isochronous
 operation requires load-sharing controls, and everything inherits the
 fully-correlated trace bound (§7), which makes these sizings conservative.
 
+### 8.1 Per-shaft fatigue vs fleet size (follow-up)
+
+Reproducible via `pixi run python tools/vv/fleet_study.py` (which is also
+the two-line recipe for fleet runs: `GGOV1Params.lm2500_overrides(
+Sn_mva=23*N, Trate_mw=22*N)`; per-shaft Tier E = divide the fleet
+`Pm_pt_mw`/`Pe_mw` by N before `compute_shaft_torques`).
+
+Theory: each shaft carries `demand/N`, so torque amplitude ∝ 1/N and
+Basquin damage per cycle ∝ amplitude^m ⇒ per-shaft damage ≈ **N^(−m)**
+(m = 9 HCF, m = 4 LCF), with the same number of load events.
+
+Measured (compliant configurations only — fatigue on a tripped trajectory
+is meaningless):
+
+| configuration | per-shaft torque (kN·m) | D_HCF | D_LCF | years to D = 1 |
+|---|---|---|---|---|
+| N=3, worst 15-min segment | 2.0 – 16.2 | 3.3e-21 | 1.3e-11 | 2.3e6 |
+| N=4, worst 15-min segment | 1.8 – 11.3 | 6.5e-23 | 3.5e-12 | 8.3e6 |
+| N=4, full 2 h | 0.6 – 11.7 | 5.6e-22 | 2.8e-11 | **8.3e6** |
+| N=1 + BESS, full 2 h (§6c) | 16.1 – 33.5 | 5.5e-28 | 6.0e-10 | 3.8e5 |
+
+- Scaling-law check (N=3→4): LCF ratio 3.7 vs Basquin prediction 3.2 ✓;
+  HCF ratio 50 vs 13 — steeper than pure amplitude scaling because the
+  larger fleet also rings the 22 Hz mode less to begin with, and the m = 9
+  exponent amplifies that difference.
+- **Answer: yes, fleet size increases shaft fatigue life very steeply
+  (≈N^m per shaft; N=4 fleet ≈ 20× the life of N=1+BESS) — but it is
+  optimizing a constraint that is already non-binding.** Every compliant
+  configuration sits at 10⁵–10⁷ years equivalent life; torsional fatigue
+  only looked threatening in the invalid post-trip trajectories. The
+  binding constraints remain trip compliance, fuel, and capex.
+- **Out-of-model caveat that cuts the other way:** real fleet operation at
+  12–16 % per-unit load invites unit start/stop cycling, and GT life
+  accounting is dominated by *thermal* LCF per start (equivalent-operating-
+  hours penalties), which Tier E does not model. A fleet that cycles units
+  daily could consume more life per unit than shaft torsion ever will.
+
 ## 9. Files changed
 
 - `notebooks/lm2500_ai_workload.ipynb` — fixes N1–N2, T1–T2; caveat T3;
