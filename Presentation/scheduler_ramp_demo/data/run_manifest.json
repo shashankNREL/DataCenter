@@ -1,0 +1,99 @@
+{
+  "objective": "lowest fuel + storage-throughput cost among feasible tested policies",
+  "schema_version": 2,
+  "scope": "fixed online equal-sharing fleet; no unit commitment or capital-cost optimization",
+  "arguments": {
+    "outdir": "/home/runner/work/DataCenter/DataCenter/Presentation/scheduler_ramp_demo",
+    "fleet_size": 2,
+    "sample_dt": 0.05,
+    "buffer_tau": 10.0,
+    "dpi": 180,
+    "no_plots": false,
+    "scenarios": [
+      "synchronized",
+      "irregular",
+      "busy"
+    ],
+    "no_sensitivity": false,
+    "delay_limits": [
+      0,
+      5,
+      15
+    ]
+  },
+  "assets": {
+    "6MW-1p5MWh": {
+      "battery_power_mw": 6.0,
+      "battery_energy_mwh": 1.5,
+      "min_soc": 0.1,
+      "max_soc": 0.9,
+      "initial_soc": 0.5,
+      "charge_efficiency": 0.95,
+      "discharge_efficiency": 0.95,
+      "generator_reserve_mw": 2.0,
+      "generator_ramp_mw_s": 0.5,
+      "fuel_cost_per_kg": 0.25,
+      "battery_cost_per_mwh": 20.0,
+      "recovery_s": 120
+    },
+    "2MW-0p5MWh": {
+      "battery_power_mw": 2,
+      "battery_energy_mwh": 0.5,
+      "min_soc": 0.1,
+      "max_soc": 0.9,
+      "initial_soc": 0.5,
+      "charge_efficiency": 0.95,
+      "discharge_efficiency": 0.95,
+      "generator_reserve_mw": 2.0,
+      "generator_ramp_mw_s": 0.5,
+      "fuel_cost_per_kg": 0.25,
+      "battery_cost_per_mwh": 20.0,
+      "recovery_s": 120
+    },
+    "4MW-1MWh": {
+      "battery_power_mw": 4,
+      "battery_energy_mwh": 1,
+      "min_soc": 0.1,
+      "max_soc": 0.9,
+      "initial_soc": 0.5,
+      "charge_efficiency": 0.95,
+      "discharge_efficiency": 0.95,
+      "generator_reserve_mw": 2.0,
+      "generator_ramp_mw_s": 0.5,
+      "fuel_cost_per_kg": 0.25,
+      "battery_cost_per_mwh": 20.0,
+      "recovery_s": 120
+    }
+  },
+  "calibration": {
+    "available_nodes": 9472,
+    "gpus_per_node": 4,
+    "facility_idle_mw": 7.306523824829934,
+    "active_node_delta_mw": 0.0022087585034013604
+  },
+  "candidate_tau_s": [
+    0,
+    2,
+    5,
+    10,
+    20
+  ],
+  "versions": {
+    "python": "3.12.3 (main, Jul 15 2026, 23:46:41) [GCC 13.3.0]",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2",
+    "pyarrow": "25.0.1"
+  },
+  "source_sha256": {
+    "tools/workload/scheduler_ramp_demo.py": "edb4fb584079d9dc8d7a9a56113be6821f675fff6aae80b521bdf9c6d2c9cb1f",
+    "tools/workload/power_asset_dispatch.py": "14f13e5f4e4bcb58e52476eb86b80e32fbf717b625334b1002c99e888010039a",
+    "gas_plant/dynamics/ggov1.py": "72df38fb40c0229ff986feda1ab9645821162efb601fc6b2b21d24ab3c62c083",
+    "gas_plant/dynamics/multishaft.py": "9a390a94ddab73f3b42b8b7bf6fe2e2e60e8ac0ccf21416dfe27bd10cb253ad6",
+    "gas_plant/unit.py": "338dd24ef00ef5f5a5256d2eecfb8be30f8ec96114d39db67049cebdd8e5e031",
+    "gas_plant/data/gas_turbine_surrogate.csv": "8544c62c1bf3c2db6fed9b21f9155ed1da0cf5f1a4cff1ff00131fd2bd5236a9",
+    "RAPS/config/frontier/system.json": "72333b2a08da5f802bb76d0950b6a209666ef81bdfd65d89496bdb360481b722",
+    "RAPS/config/frontier/power.json": "d53563b416244e9000bc2fe4173e3acc7977dae414e9a9862ac7eae8239d22b1"
+  }
+}

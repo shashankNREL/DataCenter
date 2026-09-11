@@ -324,6 +324,10 @@ def simulate_multishaft(
 
     t_eval = np.arange(0.0, load_time_s[-1] + sample_dt_s, sample_dt_s)
     t_eval = t_eval[t_eval <= load_time_s[-1] + 1e-9]
+    if abs(t_eval[-1] - load_time_s[-1]) <= 1e-9:
+        t_eval[-1] = load_time_s[-1]
+    else:
+        t_eval = np.append(t_eval, load_time_s[-1])
     n_states = 13
     y_eval = np.empty((n_states, t_eval.size), dtype=float)
     y_eval[:, 0] = state.as_array()

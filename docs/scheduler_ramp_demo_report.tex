@@ -201,7 +201,7 @@ nodes. Replacement work is conveniently available near earlier completions.
 This is an intentionally favorable introductory example.
 \item[Irregular.] The same job sizes and arrivals, but durations of
 190, 270, 310, 175, 265, 205, 180, 230, and 150 seconds.
-Completions are less aligned; total useful work is 1,791,000 node-seconds.
+Completions are less aligned; total useful work is 1,716,500 node-seconds.
 \item[Busy.] The synchronized jobs with 6,800 background nodes. Only
 2,672 of the 9,472 available nodes remain for batch jobs, so even
 immediate admission must queue some work.
@@ -409,6 +409,207 @@ must not be interchanged. Each hardware comparison uses a fixed installed
 battery; comparisons between hardware sizes are sensitivity studies, not
 capital-cost optimization.
 
+\subsection{The introductory case: a small delay, a much gentler power change}
+
+Table~\ref{tab:scheduling} describes the scheduling side before a battery
+does anything. Each row completes exactly 1,752,000 useful node-seconds
+and consumes 4.1765 MWh of modeled facility energy over the common
+1,030-second accounting window.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Rule & Largest change & Largest added & Final completion\\
+ & (MW/s) & job delay (s) & extension (s)\\
+\midrule
+Immediate & 6.185 & 0 & 0\\
+512-node wave & 1.131 & 5 & 4\\
+256-node wave & 0.565 & 10 & 9\\
+226-node wave & 0.499 & 12 & 10\\
+Reuse plus 226 & 1.498 & 12 & 3\\
+\bottomrule
+\end{tabular}
+\caption{Synchronized scheduling results. The delay is the largest extra
+full-start wait of any job, not the delay of every task.}
+\label{tab:scheduling}
+\end{table}
+
+The 226-node wave reduces the largest one-second change by about
+\textbf{92\%}, while the final job finishes ten seconds later. The
+immediate case finishes at simulation second 780; the 226-node wave
+finishes at second 790. Measured from the first arrival, these durations
+are 660 and 670 seconds, respectively.
+
+This is not an energy-saving trick: facility energy is the same.
+The electrical benefit comes from changing \emph{when} the work runs.
+The 256-node rule already achieves roughly a 91\% ramp reduction.
+That supports beginning with a simple rule rather than claiming that
+special scheduling intelligence is required.
+
+\subsection{What the same generators and battery do with those schedules}
+
+Table~\ref{tab:operation} gives the least costly feasible tested power
+setting for each schedule using the same 6 MW / 1.5 MWh installed battery.
+The smoothing time is a controller setting, not the amount of job delay.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Rule & Smoothing & Storage peak & Fuel & Cost\\
+ & time (s) & (MW) & (kg) & (\$)\\
+\midrule
+Immediate & 20 & 5.890 & 1264.43 & 317.56\\
+512-node wave & 10 & 4.379 & 1264.27 & 316.79\\
+256-node wave & 5 & 2.417 & 1264.18 & 316.41\\
+226-node wave & 0 & 0.000 & 1264.10 & 316.02\\
+Reuse plus 226 & 10 & 4.121 & 1264.33 & 316.98\\
+\bottomrule
+\end{tabular}
+\caption{Synchronized coordinated operation, including battery losses
+and restoration of its starting charge. Zero smoothing means no battery use.}
+\label{tab:operation}
+\end{table}
+
+Without battery support, immediate admission crosses the selected
+57.8 Hz protection threshold. Its coordinated 20-second policy stays
+within the required frequency band and is therefore a legitimate
+baseline for cost comparison. Comparing a successful schedule against
+the fuel consumed by an interrupted baseline would not be fair.
+
+In this particular synchronized example, the 226-node wave passes the
+checks with no battery action. Its frequency spans about
+59.472--60.178 Hz. Immediate admission with its selected battery policy
+spans about 59.663--60.000 Hz. Thus the simpler schedule uses less
+storage, but does \emph{not} deliver the best frequency margin.
+Both choices pass the stated checks.
+
+The modeled operating-cost reduction is only about \$1.53, or
+0.48\%, over this short window. Fuel falls by about 0.34 kg, or
+0.027\%. Most of the cost difference comes from the assumed battery-use
+charge, not a large improvement in turbine efficiency. Immediate
+admission exchanges about 72.43 kWh of total charging-plus-discharging
+energy and loses about 3.71 kWh in storage; the selected 226-node
+case exchanges none.
+
+The separate ideal ten-second calculation asks for 5.622 MW under
+immediate admission and 3.401 MW under the 226-node wave, a reduction
+of about 40\%. Both ideal energy swings remain 17.18 kWh.
+These are \emph{not} the actual storage peaks in
+Table~\ref{tab:operation}, which uses different, constrained
+power-management choices.
+
+\subsection{Why the reuse rule is not the headline winner}
+
+The matched comparison reveals a real tradeoff. Reuse plus 226 finishes
+the last job only three seconds later than immediate admission,
+instead of ten seconds later for the fixed 226-node wave.
+But the reuse rule also admits additional work while earlier cohorts
+are still running, which can concentrate later completions.
+Its largest one-second change is about three times that of the
+fixed rule, and it still needs storage action in its chosen policy.
+
+This is a useful negative result, not a failure to hide.
+Reusing capacity quickly may favor completion time, while pacing all
+starts may favor electrical smoothness. Neither rule should be called
+universally superior.
+
+\subsection{Irregular completions: smaller ramps are not enough by themselves}
+
+For unequal task durations, all five schedules preserve 1,716,500 useful
+node-seconds and 4.2963 MWh of facility energy over 1,077 seconds.
+Immediate admission selects 20-second smoothing at about \$332.42.
+The 512-node wave selects ten seconds at \$331.03. The 256-node
+and 226-node waves select five seconds at about \$330.10.
+
+Unlike the synchronized example, the 226-node wave is \emph{not}
+acceptable without battery support. Its generator-only frequency falls
+to about 59.282 Hz, even though its largest one-second facility change
+is only 0.499 MW/s. Multiple changes close together can cause a worse
+dynamic response than a single isolated change with the same ramp.
+
+The selected 226-node coordinated case peaks at 2.216 MW of battery
+power and reaches about 59.407 Hz at its lowest point. That is only
+about 0.007 Hz above the study's lower limit: it is a narrow screening
+margin, not a robust deployment guarantee. The final completion is
+seven seconds later than immediate admission, and the largest
+additional full-start wait is twelve seconds.
+
+Here the reuse and fixed-226 rules produce identical schedules.
+The 256-node and 226-node costs differ by less than one tenth of a
+cent. Treat them as effectively tied for practical interpretation,
+not as evidence that a specific integer budget is economically optimal.
+
+\subsection{Busy cluster: distinguish capacity waiting from intentional delay}
+
+The busy case reaches all 9,472 available nodes. Every strategy has a
+maximum full-start wait of 240 seconds because some requested work
+cannot fit until earlier work completes. It would be misleading to
+describe that four-minute wait as a cost imposed by ramp control.
+
+Relative to the same jobs under immediate admission, the additional
+maximum waits are four seconds for the 512-node rule, nine for the
+256-node rule, and eleven for either 226-node rule. All five strategies
+finish their last job at the same time, second 840. The capacity
+bottleneck, rather than the short staggering interval, controls that
+last completion.
+
+All preserve 1,752,000 useful node-seconds and 7.7728 MWh of facility
+energy in the common 1,080-second window. The best tested default-hardware
+cost falls from \$433.29 for immediate admission to \$431.79 for the
+fixed-226 rule. Their raw maximum ramps are 5.902 and 0.499 MW/s.
+Immediate admission uses a 5.621 MW storage peak; the fixed-226 and
+identical reuse case use no storage action. The different total cost
+from the synchronized case reflects a different background load and
+accounting window, not a direct measure of one scenario's superiority.
+
+\subsection{How much scheduling flexibility changes the feasible choices}
+
+Table~\ref{tab:allowances} summarizes the default-hardware comparison.
+An allowance limits the largest extra per-job full-start delay relative
+to immediate admission, not the duration of an entire job.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Scenario & No extra delay & At most 5 s & At most 15 s\\
+\midrule
+Synchronized & Immediate / \$317.56 & 512 / \$316.79 & 226 / \$316.02\\
+Irregular & Immediate / \$332.42 & 512 / \$331.03 & 226 / \$330.10\\
+Busy & Immediate / \$433.29 & 512 / \$432.54 & 226 / \$431.79\\
+\bottomrule
+\end{tabular}
+\caption{Best feasible tested schedule and operating cost with the
+6 MW / 1.5 MWh hardware. ``226'' includes the identical reuse alternative
+in the irregular and busy cases.}
+\label{tab:allowances}
+\end{table}
+
+With either smaller hardware option (2 MW / 0.5 MWh or 4 MW / 1 MWh),
+no tested combination passes all checks under the zero- or five-second
+allowance in any scenario. Under the fifteen-second allowance,
+at least one tested combination is feasible in all three scenarios.
+This is the clearest system-level benefit: limited scheduling flexibility
+changes what a given set of power assets can support.
+
+These statements concern the tested policies only. A different controller
+might make an excluded combination feasible. Nor does this establish
+an optimal battery purchase: purchase costs, contingency operation, and
+other storage duties are outside the experiment.
+
+In the irregular case, the 2 MW battery saturates for eleven seconds
+under the selected fixed-226 policy, yet the resulting generator load
+and frequency still pass the checks. Its cost is about \$330.08,
+slightly below the larger-battery result because it performs slightly
+less storage exchange. This illustrates why clipping is modeled
+explicitly and why bigger hardware is not automatically the cheapest
+operating choice under a fixed family of control rules.
+
 \subsection{How to read the figures}
 
 \begin{figure}[H]
@@ -511,6 +712,14 @@ power and energy balance, losses, charge restoration, saturation,
 infeasible cases, fleet scaling, protection handling, and finite-cost
 selection.
 
+Two additional regression checks protect reproducibility and accounting.
+A cached turbine response is only reused for the same fleet, time grid,
+sampling interval, and electrical load. The output includes the exact
+study endpoint even when the chosen sample interval does not divide
+the duration evenly; the final shorter interval still contributes to fuel
+accounting. Temperature-change rates use actual time differences.
+The existing test suite passes all 65 tests, and the separate smoke test passes.
+
 The documented Python entry point runs all three scenarios and storage
 sensitivities by default. The existing Pixi task
 \texttt{pixi run scheduler-ramp-demo} invokes the same entry point when
@@ -519,12 +728,24 @@ Apple Silicon; Python dependencies were installed separately for the Linux
 run described here, and the manifest records the actual package versions.
 No project dependency was changed for that run.
 
+The report can be built with the repository's Tectonic dependency.
+For this validation run, Tectonic's default bundle host could not be
+resolved, so the report was compiled with pdfLaTeX from TeX Live instead.
+Two passes resolve the table of contents and cross-references.
+
 The dynamic output interval is 0.05 seconds by default.
 Frequency acceptance is based on sampled results, not a proof that no
 between-sample excursion exists. The simulation is a deterministic
 comparison, not a statistical estimate from many real workload days.
 Close rankings should be treated cautiously rather than advertised with
 more precision than the model justifies.
+
+As a focused numerical check, the irregular case with default hardware
+was repeated at a 0.025-second output interval. All five selected
+power-policy settings remained unchanged. Selected frequency extrema
+changed by less than $0.000006$ Hz and operating costs by less than
+\$0.000001. This checks output sampling, not uncertainty in physical
+parameters or numerical convergence of every model equation.
 
 \section{Temperature, shaft stress, and what not to claim}
 
@@ -550,6 +771,22 @@ The important result is not that the scheduler is clever. The useful
 question is whether a modest amount of timing flexibility changes what
 the \emph{same power equipment} can do while respecting the computing
 service requirement.
+
+The regenerated examples support a concrete but limited conclusion:
+staggering independent tasks by up to twelve seconds substantially
+reduces abrupt facility power changes, and can make smaller tested
+storage configurations feasible. This does not require a clever
+scheduler. The matched reuse rule provides no consistent additional
+electrical benefit, and in the synchronized example is worse than
+simple fixed waves.
+
+Facility energy and requested useful work are unchanged. Modeled
+operating-cost improvements are small, and largely reflect reduced
+storage use rather than large fuel savings. Irregular completions still
+require battery support and leave a narrow frequency margin. The
+evidence therefore supports coordinating simple scheduling flexibility
+with power assets, not promising universal energy savings or global
+optimality.
 
 A defensible interpretation distinguishes three outcomes:
 \begin{enumerate}

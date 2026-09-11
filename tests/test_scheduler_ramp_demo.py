@@ -248,3 +248,27 @@ def test_invalid_fixed_wave_budget(limit):
     with pytest.raises(ValueError):
         simulate_schedule([], 0, load_frontier_power_calibration(),
                           Strategy("bad", "bad", "fixed", activation_limit_nodes=limit))
+
+
+def test_dynamics_cache_separates_fleet_size_and_sampling_interval():
+    run = simulate_schedule([], 1600, load_frontier_power_calibration(),
+                            default_strategies()[0], settle_s=20)
+    settings = AssetSettings(recovery_s=5)
+    cache = {}
+    for fleet_size, sample_dt in ((2, 0.05), (3, 0.05), (2, 0.03)):
+        _, best = compare_asset_policies(
+            run, settings, fleet_size, sample_dt, cache, taus=(0,))
+        assert best is not None
+        assert best[1].dynamics.t_s[1] == pytest.approx(sample_dt)
+    assert len(cache) == 3
+
+
+def test_turbine_includes_exact_accounting_endpoint():
+    run = simulate_schedule([], 1600, load_frontier_power_calibration(),
+                            default_strategies()[0], settle_s=20)
+    regular = run_turbine(run, 2, 0.05, 200)
+    fractional = run_turbine(run, 2, 0.03, 200)
+    assert fractional.dynamics.t_s[-1] == run.timeseries["time_s"].iloc[-1]
+    assert np.all(np.diff(fractional.dynamics.t_s) > 0)
+    assert fractional.dynamics.cum_fuel_kg[-1] == pytest.approx(
+        regular.dynamics.cum_fuel_kg[-1], rel=1e-8)

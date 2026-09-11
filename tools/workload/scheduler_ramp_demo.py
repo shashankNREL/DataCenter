@@ -499,7 +499,7 @@ def compute_turbine_metrics(run: TurbineRun, sample_dt_s: float) -> dict[str, fl
     result = run.dynamics
     low_hz, high_hz = FREQUENCY_BAND_HZ
     temperature_k = np.asarray(result.exhaust_T_K, dtype=float)
-    temperature_rate = np.diff(temperature_k) / sample_dt_s
+    temperature_rate = np.diff(temperature_k) / np.diff(result.t_s)
     temperature_rate_events = np.abs(
         temperature_rate[np.abs(temperature_rate) > 1e-9]
     )
@@ -782,7 +782,7 @@ def compare_asset_policies(
     settings: AssetSettings,
     fleet_size: int,
     sample_dt_s: float,
-    cache: dict[bytes, TurbineRun],
+    cache: dict[tuple[int, float, bytes, bytes], TurbineRun],
     taus: tuple[float, ...] = (0.0, 2.0, 5.0, 10.0, 20.0),
 ) -> tuple[pd.DataFrame, tuple[pd.DataFrame, TurbineRun] | None]:
     """Minimize cost over the same finite candidate set, after feasibility screening."""
@@ -805,7 +805,9 @@ def compare_asset_policies(
         # Always retain the no-storage dynamic reference; reject other candidates
         # cheaply when they already fail the common engineering constraints.
         if (not reasons or tau == 0) and np.max(net) <= ceiling:
-            key = net.tobytes()
+            key = (fleet_size, sample_dt_s,
+                   schedule.timeseries["time_s"].to_numpy(dtype=float).tobytes(),
+                   net.tobytes())
             if key not in cache:
                 cache[key] = run_turbine(schedule, fleet_size, sample_dt_s, 200.0,
                                          load_mw=net)
@@ -934,7 +936,7 @@ def main() -> None:
         scenario_dir = args.outdir if scenario == "synchronized" else args.outdir / scenario
         (scenario_dir / "data").mkdir(parents=True, exist_ok=True)
         turbines, coordinated, summary_rows, candidates = {}, {}, [], []
-        cache: dict[bytes, TurbineRun] = {}
+        cache: dict[tuple[int, float, bytes, bytes], TurbineRun] = {}
         for schedule in schedules:
             print(f"{scenario}: {schedule.strategy.label}", flush=True)
             delays = (schedule.jobs.set_index("job_id")["full_start_s"]
@@ -962,7 +964,11 @@ def main() -> None:
                     for suffix in ("coordinated", "coordinated_turbine"):
                         (scenario_dir / "data" /
                          f"{schedule.strategy.name}_{suffix}.parquet").unlink(missing_ok=True)
-            turbine = cache.get(schedule.timeseries["facility_power_mw"].to_numpy(dtype=float).tobytes())
+            turbine = cache.get((
+                args.fleet_size, args.sample_dt,
+                schedule.timeseries["time_s"].to_numpy(dtype=float).tobytes(),
+                schedule.timeseries["facility_power_mw"].to_numpy(dtype=float).tobytes(),
+            ))
             if turbine is None:
                 raise ValueError("generator-only reference exceeds fleet rating; use a larger fleet")
             turbines[schedule.strategy.name] = turbine

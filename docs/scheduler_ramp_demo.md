@@ -165,6 +165,52 @@ Figures show (1) starts and facility ramps, (2) generator-only response,
 installed hardware. Torsion/fatigue helpers remain available for specialist
 screening but are not run or promoted as a main result.
 
+## Regenerated results
+
+The completed run contains 15 schedule/scenario summaries, 225 tested
+hardware/policy combinations, and 27 hardware/delay-allowance comparisons.
+
+For the synchronized example, all schedules deliver 1,752,000 useful
+node-seconds and consume 4.1765 MWh of facility energy over the same
+1,030-second window:
+
+| Rule | Maximum one-second ramp (MW/s) | Maximum added job delay (s) | Final completion extension (s) | Selected actual battery peak (MW) | Best tested operating cost ($) |
+|---|---:|---:|---:|---:|---:|
+| Immediate | 6.185 | 0 | 0 | 5.890 | 317.56 |
+| 512-node wave | 1.131 | 5 | 4 | 4.379 | 316.79 |
+| 256-node wave | 0.565 | 10 | 9 | 2.417 | 316.41 |
+| 226-node wave | 0.499 | 12 | 10 | 0.000 | 316.02 |
+| Reuse plus 226 | 1.498 | 12 | 3 | 4.121 | 316.98 |
+
+The fixed-226 rule reduces maximum ramp by about **92%**, but does **not**
+reduce facility energy or increase useful work. Its roughly **0.48%** modeled
+cost reduction mostly reflects less storage use; fleet fuel decreases only
+about **0.027%**. No battery action is needed for this particular case under
+the study checks—not a claim that a real facility needs no storage.
+The separate ideal ten-second buffer power estimate falls about 40%, while
+its energy swing remains 17.18 kWh.
+
+The matched reuse rule finishes sooner than the fixed wave, but has larger
+power changes and requires more storage action. A more elaborate rule is
+not automatically better.
+
+- **Irregular:** 1,716,500 useful node-seconds and 4.2963 MWh in every schedule.
+  Fixed-226 requires battery support despite its 0.499 MW/s facility ramp.
+  Its selected frequency nadir is about 59.407 Hz, only 0.007 Hz above the
+  study limit. Fixed-256 and fixed-226 costs are effectively tied.
+- **Busy:** all strategies reach full capacity and have up to 240 seconds
+  of baseline capacity waiting. Fixed-226 adds at most 11 seconds to any
+  job's full-start wait, but does not extend the last completion. Facility
+  energy remains 7.7728 MWh, and best tested cost falls from $433.29 to $431.79.
+- **Smaller storage:** with 2 MW / 0.5 MWh or 4 MW / 1 MWh, none of the tested
+  policies is feasible with at most five seconds of additional delay.
+  At least one is feasible with fifteen seconds in every scenario. This
+  establishes an operating tradeoff, not optimal battery purchasing.
+
+The key finding is that modest scheduling flexibility changes what the
+same power assets can support. It is not evidence of global optimality,
+large fuel savings, or improved AI productivity.
+
 ## Temperature interpretation
 
 The temperature trace is an **estimated exhaust-gas screening signal**. The
@@ -197,6 +243,18 @@ protected work, matched admission, invalid inputs, constant traces, fleet
 scaling, battery power/energy balance, efficiency losses, charge recovery,
 saturation, infeasibility, protection crossing, and cost selection.
 
+Completion checks also ensure that cached turbine trajectories are not reused
+across different fleet sizes or sampling intervals, and that fuel accounting
+includes the exact final time even when the output interval does not divide
+the study duration. Temperature slew uses the actual interval lengths.
+
+The existing test suite passes all 65 tests, and the existing smoke test passes.
+No project dependency or lockfile was changed for the Linux validation run.
+Repeating the irregular default-hardware case at a 0.025-second output
+interval preserves every selected policy; selected frequency extrema differ
+by less than 0.000006 Hz and costs by less than $0.000001. This is an
+output-sampling check, not physical model validation.
+
 The detailed novice-oriented explanation and results are in
 `/home/runner/work/DataCenter/DataCenter/docs/scheduler_ramp_demo_report.tex`.
 Build it with the repository's existing Tectonic dependency:
@@ -204,6 +262,10 @@ Build it with the repository's existing Tectonic dependency:
 ```bash
 tectonic /home/runner/work/DataCenter/DataCenter/docs/scheduler_ramp_demo_report.tex
 ```
+
+The report was also compiled with pdfLaTeX (two passes) in this environment:
+Tectonic itself was available, but its default bundle host could not resolve.
+Auxiliary build files are kept outside the repository.
 
 ## Limits and next research steps
 
