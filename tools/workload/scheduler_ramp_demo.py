@@ -17,6 +17,7 @@ import hashlib
 import json
 import sys
 from dataclasses import asdict, dataclass, replace
+from importlib.metadata import version
 from pathlib import Path
 
 import matplotlib
@@ -241,8 +242,7 @@ def simulate_schedule(
             raise ValueError("jobs require positive integer arrival, duration, and nodes")
     if jobs and base_active_nodes == calibration.available_nodes:
         raise ValueError("no capacity available for submitted work")
-    ordered_jobs = sorted(jobs, key=lambda job: (job.submit_s, not job.flexible,
-                                                job.job_id))
+    ordered_jobs = sorted(jobs, key=lambda job: (job.submit_s, job.job_id))
     remaining = {job.job_id: job.nodes for job in jobs}
     pending: list[str] = []
     cohorts: list[tuple[int, str, int]] = []
@@ -482,6 +482,13 @@ def run_turbine(
         dispatch_fn=lambda fraction: lm2500_dispatch_estimate(fraction, fleet_size),
     )
     trip_s = float(np.sum(dynamics.freq_hz < UNDERFREQUENCY_TRIP_HZ) * sample_dt_s)
+    if trip_s > 0:
+        first_trip = int(np.flatnonzero(dynamics.freq_hz < UNDERFREQUENCY_TRIP_HZ)[0])
+        # Protection ends the valid screening trajectory. Never publish the
+        # unconstrained model's subsequent collapse/recovery as plant operation.
+        for key, value in vars(dynamics).items():
+            if isinstance(value, np.ndarray):
+                setattr(dynamics, key, value[:first_trip + 1])
     torsion = None
     if include_torsion and trip_s == 0.0:
         torsion = run_torsion(dynamics, fleet_size, torsion_sample_rate_hz)
@@ -502,9 +509,9 @@ def compute_turbine_metrics(run: TurbineRun, sample_dt_s: float) -> dict[str, fl
         "frequency_oob_s": float(np.sum(
             np.diff(result.t_s) * ((result.freq_hz[:-1] < low_hz)
                                   | (result.freq_hz[:-1] > high_hz)))),
-        "frequency_below_trip_s": float(
-            np.sum(result.freq_hz < UNDERFREQUENCY_TRIP_HZ) * sample_dt_s
-        ),
+        "first_trip_s": (
+            float(result.t_s[np.flatnonzero(result.freq_hz < UNDERFREQUENCY_TRIP_HZ)[0]])
+            if np.any(result.freq_hz < UNDERFREQUENCY_TRIP_HZ) else np.nan),
         "exhaust_temp_min_c": float(np.min(temperature_k) - 273.15),
         "exhaust_temp_max_c": float(np.max(temperature_k) - 273.15),
         "exhaust_temp_range_k": float(np.ptp(temperature_k)),
@@ -580,7 +587,11 @@ def build_summary_row(
         "useful_node_seconds": float(schedule.timeseries["useful_elastic_nodes"].iloc[:-1].sum()),
         "facility_energy_mwh": float(schedule.timeseries["facility_power_mw"].iloc[:-1].sum() / 3600),
         "nonproductive_hold_energy_mwh": 0.0,
-        "generator_only_fleet_fuel_kg": float(turbine.dynamics.cum_fuel_kg[-1]),
+        "generator_only_trajectory_valid": bool(
+            np.all(turbine.dynamics.freq_hz >= UNDERFREQUENCY_TRIP_HZ)),
+        "generator_only_fleet_fuel_kg": (
+            float(turbine.dynamics.cum_fuel_kg[-1])
+            if np.all(turbine.dynamics.freq_hz >= UNDERFREQUENCY_TRIP_HZ) else np.nan),
     }
     row.update(compute_ramp_metrics(schedule.timeseries))
     row.update(buffer_metrics)
@@ -643,7 +654,7 @@ def plot_turbine_response(
     axes[0].axhline(UNDERFREQUENCY_TRIP_HZ, color="#C44536", linestyle="--",
                     linewidth=1.0, label="57.8 Hz trip")
     axes[0].set_ylabel("Frequency (Hz)")
-    axes[0].set_title("Generator-only screening: no storage support")
+    axes[0].set_title("Generator-only screening: traces stop at first protection crossing")
     axes[0].legend(fontsize=8, ncol=2)
     axes[1].set_ylabel("Estimated exhaust (°C)")
     axes[1].set_title("Estimated exhaust temperature, not component temperature or life")
@@ -711,7 +722,7 @@ def plot_fast_buffer(
         schedule for name in selected_names for schedule in schedules
         if schedule.strategy.name == name
     ]
-    fig, axes = plt.subplots(3, 2, figsize=(13.0, 9.0), sharex="col")
+    fig, axes = plt.subplots(4, 2, figsize=(13.0, 11.0), sharex="col")
     for column, schedule in enumerate(selected):
         if schedule.strategy.name not in coordinated:
             axes[0, column].set_title(f"{schedule.strategy.label}: no feasible policy")
@@ -744,9 +755,14 @@ def plot_fast_buffer(
 
         axes[2, column].plot(time_min, dispatch["state_of_charge"] * 100,
                              color="#F4A261", linewidth=1.0)
-        axes[2, column].set_xlabel("Simulation time (min)")
         axes[2, column].set_ylabel("Stored charge (%)")
         axes[2, column].set_title("Initial charge restored; installed bounds 10–90%")
+        axes[3, column].plot(turbine.dynamics.t_s / 60, turbine.dynamics.freq_hz,
+                             color="#457B9D", linewidth=1.0)
+        axes[3, column].axhspan(*FREQUENCY_BAND_HZ, color="#2A9D8F", alpha=0.12)
+        axes[3, column].set_ylabel("Frequency (Hz)")
+        axes[3, column].set_xlabel("Simulation time (min)")
+        axes[3, column].set_title("Coordinated system frequency")
 
     for ax in axes.flat:
         ax.grid(alpha=0.25)
@@ -801,6 +817,9 @@ def compare_asset_policies(
                 "fleet_fuel_kg": float(dynamics.cum_fuel_kg[-1]),
                 "mechanical_peak_mw": float(dynamics.Pm_pt_mw.max()),
             })
+            if np.any(dynamics.freq_hz < UNDERFREQUENCY_TRIP_HZ):
+                reasons.append("underfrequency_trip")
+                metrics["fleet_fuel_kg"] = np.nan
             if (metrics["frequency_nadir_hz"] < FREQUENCY_BAND_HZ[0]
                     or metrics["frequency_zenith_hz"] > FREQUENCY_BAND_HZ[1]):
                 reasons.append("frequency_band")
@@ -939,6 +958,10 @@ def main() -> None:
                     best[1].dynamics.as_dataframe().to_parquet(
                         scenario_dir / "data" / f"{schedule.strategy.name}_coordinated_turbine.parquet",
                         index=False)
+                elif hardware_name == "6MW-1p5MWh":
+                    for suffix in ("coordinated", "coordinated_turbine"):
+                        (scenario_dir / "data" /
+                         f"{schedule.strategy.name}_{suffix}.parquet").unlink(missing_ok=True)
             turbine = cache.get(schedule.timeseries["facility_power_mw"].to_numpy(dtype=float).tobytes())
             if turbine is None:
                 raise ValueError("generator-only reference exceeds fleet rating; use a larger fleet")
@@ -948,6 +971,7 @@ def main() -> None:
                 "scenario": scenario,
                 "peak_active_nodes": float(schedule.timeseries["active_nodes"].max()),
                 "max_additional_delay_s": max_extra_delay,
+                "within_max_delay_allowance": max_extra_delay <= max(args.delay_limits),
                 "completion_extension_s": float(schedule.jobs["completion_s"].max()) - baseline_completion,
             })
             feasible = per_hardware["6MW-1p5MWh"].query("feasible").sort_values(
@@ -993,11 +1017,15 @@ def main() -> None:
                ROOT / "RAPS/config/frontier/system.json", ROOT / "RAPS/config/frontier/power.json"]
     manifest = {
         "objective": "lowest fuel + storage-throughput cost among feasible tested policies",
+        "schema_version": 2,
         "scope": "fixed online equal-sharing fleet; no unit commitment or capital-cost optimization",
         "arguments": {**vars(args), "outdir": str(args.outdir)},
         "assets": {name: asdict(asset) for name, asset in hardware.items()},
         "calibration": asdict(calibration), "candidate_tau_s": [0, 2, 5, 10, 20],
-        "versions": {"python": sys.version, "numpy": np.__version__, "pandas": pd.__version__},
+        "versions": {"python": sys.version, **{
+            package: version(package)
+            for package in ("numpy", "pandas", "scipy", "matplotlib", "pyarrow")
+        }},
         "source_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in sources},
     }

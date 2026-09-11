@@ -21,6 +21,7 @@ from tools.workload.scheduler_ramp_demo import (
     JobSpec,
     Strategy,
     lm2500_dispatch_estimate,
+    run_turbine,
 )
 from tools.workload.power_asset_dispatch import AssetSettings, dispatch_storage
 
@@ -208,8 +209,42 @@ def test_coordinated_replay_and_finite_cost_selection():
     # The dynamic model must see residual electrical demand, with no fictitious
     # frequency-sensitive workload reduction.
     np.testing.assert_allclose(turbine.dynamics.Pe_mw, turbine.dynamics.Pe_demand_mw)
+    indices = np.maximum(0, np.ceil(turbine.dynamics.t_s - 1e-9).astype(int) - 1)
+    np.testing.assert_allclose(
+        turbine.dynamics.Pe_mw,
+        dispatch["generator_electrical_load_mw"].to_numpy()[indices])
     assert turbine.dynamics.Pe_mw.max() < run.timeseries["facility_power_mw"].max()
     cost = (turbine.dynamics.cum_fuel_kg[-1] * settings.fuel_cost_per_kg
             + np.abs(dispatch["battery_power_mw"].iloc[:-1]).sum() / 3600
             * settings.battery_cost_per_mwh)
     assert cost == pytest.approx(candidates.loc[candidates["feasible"], "operating_cost"].min())
+
+
+def test_protection_crossing_truncates_invalid_generator_operation():
+    run = simulate_schedule(
+        [JobSpec("batch", 5, 40, 2800)], 1600, load_frontier_power_calibration(),
+        default_strategies()[0], settle_s=2)
+    turbine = run_turbine(run, 2, 0.05, 200)
+    assert turbine.dynamics.freq_hz[-1] < 57.8
+    assert np.all(turbine.dynamics.freq_hz[:-1] >= 57.8)
+    assert turbine.dynamics.t_s[-1] < run.timeseries["time_s"].iloc[-1]
+    assert turbine.torsion is None
+
+
+def test_infeasible_hardware_has_no_selected_dispatch():
+    run = simulate_schedule(
+        [JobSpec("batch", 5, 10, 400)], 1600, load_frontier_power_calibration(),
+        default_strategies()[0], settle_s=20)
+    settings = AssetSettings(battery_power_mw=0.1, recovery_s=5,
+                             generator_ramp_mw_s=0.2)
+    candidates, best = compare_asset_policies(run, settings, 2, 0.05, {}, taus=(0, 5))
+    assert best is None
+    assert not candidates["feasible"].any()
+    assert candidates["rejection_reason"].str.contains("generator_ramp").all()
+
+
+@pytest.mark.parametrize("limit", [0, -2, 1.5, None])
+def test_invalid_fixed_wave_budget(limit):
+    with pytest.raises(ValueError):
+        simulate_schedule([], 0, load_frontier_power_calibration(),
+                          Strategy("bad", "bad", "fixed", activation_limit_nodes=limit))
