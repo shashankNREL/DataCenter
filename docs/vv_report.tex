@@ -315,6 +315,41 @@ control system (GE Speedtronic, Woodward) actually runs, arbitrated by a
 \emph{low value select} (LVS): whichever controller asks for the
 \emph{least} fuel wins.
 
+For a newcomer, it helps to state the physical job first: the governor is
+trying to keep the generator spinning at the right speed while never
+asking the gas turbine to do something unsafe. When electrical demand
+steps up, the generator rotor slows because the electromagnetic torque at
+the terminals is briefly larger than the mechanical torque coming from the
+turbine. The governor senses that speed drop, increases fuel, and the
+turbine produces more shaft power. If that requested fuel increase would
+accelerate the machine too hard or overheat the hot section, protective
+loops step in and request less fuel than the speed loop wanted. In other
+words, GGOV1 is not a single controller; it is a \emph{coordinator} of
+three controllers with different priorities.
+
+\begin{novicebox}[What each signal means physically]
+The most important signals in this section are:
+\begin{itemize}[nosep]
+\item $\omega$: shaft speed in per-unit. $\omega = 1$ means exactly 60 Hz
+  electrical frequency for this machine.
+\item $P_e$: electrical power leaving the generator. If $P_e$ suddenly
+  rises while turbine power has not yet changed, the rotor slows.
+\item $v$: fuel-valve stroke. Larger $v$ means the fuel system is opening
+  further.
+\item $W_f$: the governor's internal fuel-flow signal. It is closely tied
+  to fuel delivery, but it is normalized in per-unit rather than written
+  in kg/s.
+\item $P_m$: mechanical power produced by the turbine and delivered to the
+  generator shaft.
+\item $f_{srn}, f_{sra}, f_{srt}$: the three candidate fuel commands from
+  the speed, acceleration, and temperature loops, respectively.
+\end{itemize}
+The low-value select then chooses the \emph{smallest} of those three fuel
+requests. That is a safety-oriented design: if any protective loop says
+``do not add that much fuel,'' the final command obeys the most
+conservative loop.
+\end{novicebox}
+
 \subsection{State vector and parameters}
 
 The implementation integrates twelve states:
@@ -380,6 +415,57 @@ base; the conversion \eqref{eq:kb} appears exactly twice:
   P_e^{(t)} = P_e^{(g)}/k_b .
 \end{equation}
 
+For the LM2500 values used here, $T_\text{rate} = \SI{22}{MW}$,
+$S_n = \SI{23}{MVA}$, and therefore $k_b = 22/23 = 0.9565$. A novice
+mistake is to think that ``per-unit is per-unit'' and everything can be
+added freely. Not here. The controller works on the turbine's own rating,
+while the swing equation works on the generator base. The conversion
+factor $k_b$ is what keeps those two accounting systems consistent.
+
+\subsection{End-to-end signal path}
+The full implemented GGOV1 closed loop can be read as the following chain
+of equations, which correspond directly to the code in
+\texttt{gas\_plant/dynamics/ggov1.py}:
+\begin{align}
+  P_e^{(g)} &= P_{\text{load}}^{(g)}\,\bigl[1 + \alpha\,(\omega-1)\bigr],
+    \label{eq:ggov-load-damping}\\
+  \dot{\tilde P_e} &= \frac{P_e^{(g)}/k_b - \tilde P_e}{T_{pelec}},
+    \label{eq:ggov-pelec}\\
+  (f_{srn}, f_{sra}, f_{srt}) &=
+    \text{speed loop, accel loop, temp loop},\\
+  f_{sr} &= \min\bigl(f_{srn},\,f_{sra},\,f_{srt}\bigr),
+    \label{eq:ggov-lvs}\\
+  \dot v &= \text{clip}\!\left(
+    \frac{\text{clip}(f_{sr},V^{min},V^{max}) - v}{T_{act}},
+    R_{close}, R_{open}\right),
+    \label{eq:ggov-valve-overview}\\
+  W_f &= v\cdot\omega^{\,[\texttt{flag}=1]}\cdot\omega^{D_m[D_m<0]},
+    \label{eq:ggov-wf}\\
+  \dot x_t &= \frac{W_f - x_t}{T_b},
+    \qquad
+    P_m^{(t)} = K_{turb}\bigl(x_t + T_c\dot x_t - W_{fnl}\bigr)
+      - D_m(\omega-1)[D_m>0],
+    \label{eq:ggov-pm-overview}\\
+  2H\,\dot\omega &= k_b P_m^{(t)} - P_e^{(g)} - D(\omega-1),
+    \qquad
+    \dot\delta = \omega_0(\omega-1).
+    \label{eq:ggov-swing-overview}
+\end{align}
+
+This compact block contains the entire story. Equation
+\eqref{eq:ggov-load-damping} says the electrical load is not perfectly
+rigid: as frequency changes, a frequency-sensitive fraction of the load
+changes with it. Equation \eqref{eq:ggov-pelec} says the governor does not
+see electrical power instantaneously; it sees a measured version through a
+transducer lag. Equation \eqref{eq:ggov-lvs} is the arbitration step: the
+smallest fuel command wins. Equation \eqref{eq:ggov-valve-overview} turns
+that command into an actual valve motion subject to position and rate
+limits. Equations \eqref{eq:ggov-wf} and \eqref{eq:ggov-pm-overview}
+convert valve position into fuel flow and then into mechanical power.
+Finally, \eqref{eq:ggov-swing-overview} is the shaft-speed balance: if
+mechanical power exceeds electrical power the rotor accelerates; if it is
+smaller, the rotor decelerates.
+
 \subsection{Loop 1: speed/power governor}
 \label{sec:ggov1speed}
 
@@ -410,6 +496,27 @@ The pre-V\&V code documented four \texttt{rselect} modes but implemented
 only one --- notably missing isochronous, the natural mode for a single
 islanded unit (defect G4).
 
+For the novice reader, the speed loop is the ``main driver'' of ordinary
+operation. Its proportional term $K_{pgov} e_s$ reacts immediately to a
+speed error: if frequency dips, the proportional term commands more fuel
+right away. Its integral state $x_i$ removes long-term offset. Without the
+integral term, a droop governor would settle at a frequency below 60 Hz
+after a sustained load increase because a finite speed error is what holds
+the extra fuel command in place. With isochronous operation
+(\texttt{rselect}=0), the integrator continues adjusting fuel until the
+steady-state speed error is exactly zero. With droop
+(\texttt{rselect}=1, -1, -2), the steady-state operating point is instead
+set by the droop law, which lets multiple generators share load in a
+stable way.
+
+The error clamp at $\pm0.05$ pu is also important. It does \emph{not}
+mean the machine is allowed to be 5\% off frequency in normal operation.
+It means the internal controller error seen by the proportional and
+integral gains is bounded so that a very large disturbance does not cause
+an unrealistically large commanded fuel jump. In practice, the clamp works
+with the valve-rate limit to keep the modeled controller behavior inside a
+credible operating region.
+
 \subsection{Loop 2: acceleration limiter}
 The rotor acceleration is estimated with a washout filter (the exact
 state-space realization of $s/(1+sT_a)$):
@@ -421,6 +528,17 @@ state-space realization of $s/(1+sT_a)$):
 \end{equation}
 It only takes over when the shaft accelerates faster than $a_\text{set} =
 0.01\pu/\text{s}$ (startup, load rejection).
+
+Why does this loop exist? Because the speed loop alone is happy to ask for
+large fuel increases whenever frequency falls. But large fuel changes can
+make the turbine spool accelerate too quickly, which is mechanically and
+thermally undesirable. The acceleration loop therefore watches
+$\dd\omega/\dd t$, not just $\omega$ itself. If the rotor is already
+speeding up too fast, this loop pulls the allowed fuel command downward
+even if the speed loop would prefer more fuel. In normal small-signal
+operation it is usually inactive. It matters most during severe load
+rejections, startup-like transients, or very sharp recovery events after a
+deep frequency dip.
 
 \subsection{Loop 3: temperature (thermal) limiter}
 Gas turbines are power-limited by hot-section temperature. GGOV1 proxies
@@ -440,6 +558,20 @@ a \SI{25}{MW} demand settles at $P_m = \SI{22.000}{MW}$ with the
 temperature limiter selected). The pre-V\&V code, with its mixed bases,
 enforced 23\,MW here and 26.1\,MW at the valve limit while claiming 22\,MW
 (defect G1).
+
+This loop deserves extra emphasis because newcomers often assume a gas
+turbine's output rating is enforced directly by a hard power clamp. That
+is not how the real machine behaves. The machine is limited by temperature
+in the combustor and hot-section hardware, and temperature responds with a
+delay. GGOV1 captures that idea by letting fuel flow drive a filtered
+temperature proxy. The limiter compares that proxy to the fuel level that
+corresponds to rated continuous output,
+$t_{lim} = L_{dref}/K_{turb} + W_{fnl}$. If the proxy temperature is below
+the limit, the thermal loop is permissive and usually not selected. If the
+proxy temperature rises toward the limit, the loop reduces the fuel
+command. That is why the valve can briefly admit enough fuel for more than
+rated power, while the temperature loop slowly winds the machine back to
+its continuous capability.
 
 \subsection{Low value select and anti-windup}
 \label{sec:aw}
@@ -482,6 +614,23 @@ nadir by only 2.1\,mHz.
     \;-\; D_m(\omega-1)\,[D_m>0].
   \label{eq:turbine}
 \end{align}
+The actuator equation is worth unpacking line by line.
+\begin{itemize}[nosep]
+\item First, the selected fuel request $f_{sr}$ is clipped to the
+  physically reachable valve-stroke range $[V^{min},V^{max}]$.
+\item Second, the actuator cannot jump instantaneously to that target. It
+  moves toward it with time constant $T_{act}$.
+\item Third, even that first-order motion is further limited by explicit
+  opening and closing slew-rate bounds $R_{open}$ and $R_{close}$.
+\item Finally, if the valve is already sitting at a hard position limit,
+  motion that would push it farther into saturation is zeroed out.
+\end{itemize}
+This sequence is exactly what the implementation does in the right-hand
+side function. It matters because each limit has a different physical
+meaning: position limits represent finite hardware travel, rate limits
+represent finite servo speed, and the time constant represents actuator
+lag even away from the hard stops.
+
 Two constants deserve explanation for the newcomer:
 \begin{itemize}[nosep]
 \item $W_{fnl} = 0.2$ is the \emph{full-speed no-load} fuel: a spinning,
@@ -519,6 +668,15 @@ where the small offsets come from balancing the back-calculation terms
 $\lVert\text{RHS}\rVert < 3\times10^{-15}$ at five operating points ---
 the initial condition is an equilibrium to machine precision.
 
+This initialization step is easy to underestimate. If the simulation were
+started with ``reasonable-looking'' guesses instead of the exact
+equilibrium, the first second of motion would mostly be the controller
+settling to its own true operating point rather than responding to the
+user's intended disturbance. That can completely contaminate step-response
+metrics such as nadir, overshoot, or settling time. The helper routine
+that computes this equilibrium is therefore part of the model, not a mere
+convenience.
+
 \subsection{Fuel accounting}
 \label{sec:fuel}
 Fuel mass flow is computed \emph{natively} from the governor's own fuel
@@ -539,6 +697,40 @@ $\Rightarrow$ 35.3\,\% shaft efficiency). The pre-V\&V code instead fed
 the raw \emph{valve stroke} into a surrogate expecting a \emph{power
 fraction}, double-counting no-load fuel (defect G2) --- every prior fuel
 total was biased by it.
+
+\subsection{Implementation map: functions and line numbers}
+Table~\ref{tab:ggov-code-map} lists the implementation entry points for
+readers who want to connect the equations above to the source code.
+Line numbers refer to the current revision of
+\texttt{gas\_plant/dynamics/ggov1.py}.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{p{0.38\linewidth}cp{0.43\linewidth}}
+\toprule
+function or method & line & role \\
+\midrule
+\texttt{GGOV1Params.\_\_post\_init\_\_} & 177 & derived constants, base conversion $k_b$, and native fuel calibration \\
+\texttt{GGOV1Params.Pm\_transient\_max\_pu} & 189 & short-term valve-stroke power ceiling \\
+\texttt{GGOV1Params.Pm\_thermal\_max\_pu} & 194 & continuous thermal power ceiling \\
+\texttt{GGOV1Params.lm2500\_overrides} & 199 & LM2500-specific parameter overrides on top of PES-TR1 defaults \\
+\texttt{GGOV1State.as\_array} & 231 & packs the 12-state model into the ODE vector \\
+\texttt{GGOV1State.from\_array} & 238 & unpacks the ODE vector back into named state fields \\
+\texttt{GGOV1Result.as\_dataframe} & 274 & converts simulation outputs into a tabular result \\
+\texttt{\_compute\_controllers} & 297 & computes the speed, acceleration, and temperature candidate fuel commands \\
+\texttt{\_turbine\_power} & 337 & maps valve stroke and speed to fuel flow and turbine mechanical power \\
+\texttt{\_rhs\_factory} & 354 & builds the right-hand-side closure for one constant-load segment \\
+\texttt{rhs} (nested inside \texttt{\_rhs\_factory}) & 361 & evaluates the full 12-state differential equations \\
+\texttt{\_initial\_state\_for\_load} & 438 & computes a self-consistent steady-state initialization \\
+\texttt{\_pref\_for\_rselect} & 473 & selects the correct reference signal for the chosen droop mode \\
+\texttt{simulate\_ggov1} & 487 & top-level simulator, chunked ODE solve, diagnostics, and fuel totals \\
+\texttt{step\_response} & 637 & convenience driver for validation step tests \\
+\bottomrule
+\end{tabular}
+\caption{GGOV1 implementation map for readers following the source.}
+\label{tab:ggov-code-map}
+\end{table}
 
 %=====================================================================
 \section{Two-mass gas-path model (Tier C)}

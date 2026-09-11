@@ -1,0 +1,6 @@
+metric,value,limit,unit
+Stable islanding,0.037,1.0,Hz excursion
+Naive resync,8.58,1.0,Hz excursion
+DC bus voltage,0.994,0.95,pu voltage
+Fuel reserve,2.3,2.0,hours on 90 t LNG
+CO2 rate,107.0,,t/h at 200 MW

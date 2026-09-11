@@ -140,6 +140,8 @@ class MultishaftResult:
     P_couple_mw: np.ndarray
     valve_pu: np.ndarray         # turbine-base pu
     P_fuel_pu: np.ndarray
+    thermal_load_proxy_pu: np.ndarray
+    exhaust_T_K: Optional[np.ndarray] = None
     fuel_kg_s: Optional[np.ndarray] = None
     cum_fuel_kg: Optional[np.ndarray] = None
 
@@ -158,7 +160,10 @@ class MultishaftResult:
             "P_couple_mw": self.P_couple_mw,
             "valve_pu": self.valve_pu,
             "P_fuel_pu": self.P_fuel_pu,
+            "thermal_load_proxy_pu": self.thermal_load_proxy_pu,
         }
+        if self.exhaust_T_K is not None:
+            d["exhaust_T_K"] = self.exhaust_T_K
         if self.fuel_kg_s is not None:
             d["fuel_kg_s"] = self.fuel_kg_s
         if self.cum_fuel_kg is not None:
@@ -356,6 +361,7 @@ def simulate_multishaft(
     x_turb = y_eval[10]
     P_fuel = y_eval[11]
     omega_hp = y_eval[12]
+    x_tload = y_eval[7]
 
     freq_hz = omega_pt * 60.0
     NGG_full_rpm = 9500.0  # LM2500 NGG at full power (Pocket Guide)
@@ -384,6 +390,7 @@ def simulate_multishaft(
     P_couple_pu = np.maximum(0.0, p.K_couple * (omega_hp - p.omega_hp_idle))
     Pm_pt_mw = P_couple_pu * g.Trate_mw
     P_couple_mw = Pm_pt_mw.copy()
+    thermal_load_proxy_pu = np.clip(g.Kturb * (x_tload - g.Wfnl), 0.0, 1.0)
 
     result = MultishaftResult(
         t_s=t_eval,
@@ -392,6 +399,7 @@ def simulate_multishaft(
         omega_hp_pu=omega_hp, speed_hp_rpm=speed_hp_rpm,
         Pm_pt_mw=Pm_pt_mw, Pm_hp_mw=Pm_hp_mw, P_couple_mw=P_couple_mw,
         valve_pu=valve, P_fuel_pu=P_fuel,
+        thermal_load_proxy_pu=thermal_load_proxy_pu,
     )
 
     # ---- Fuel (V&V fix G2, same semantics as ggov1) ----
@@ -399,6 +407,9 @@ def simulate_multishaft(
         load_frac = np.clip(g.Kturb * (P_fuel - g.Wfnl), 0.0, 1.0)
         disp = dispatch_fn(load_frac)
         result.fuel_kg_s = np.asarray(disp["fuel_kg_s"], dtype=float)
+        thermal_disp = dispatch_fn(thermal_load_proxy_pu)
+        if "exhaust_T_K" in thermal_disp:
+            result.exhaust_T_K = np.asarray(thermal_disp["exhaust_T_K"], dtype=float)
     else:
         result.fuel_kg_s = g.wf_base_kg_s * np.clip(P_fuel, 0.0, None)
     result.cum_fuel_kg = np.concatenate(

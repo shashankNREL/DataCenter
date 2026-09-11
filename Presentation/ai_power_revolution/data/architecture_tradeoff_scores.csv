@@ -1,0 +1,7 @@
+architecture,Peak capacity,Fast ramps,Islanded ride-through,Fuel/CO2 performance,Operational simplicity,Grid friendliness
+Grid only,4,2,1,4,4,2
+Single GT,3,1,2,2,3,2
+Single GT + BESS,4,4,3,3,2,4
+2 GT + BESS,5,4,4,3,2,4
+4 GT only,5,4,4,1,3,3
+Grid + GT + BESS + workload API,5,5,5,4,1,5

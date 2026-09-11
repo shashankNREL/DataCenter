@@ -1,0 +1,6 @@
+case,installed_gas_mw,per_unit_avg_load_pct,fuel_multiplier,bess_power_mw,verdict
+1 GT,22.0,48.0,1.0,0.0,Trips
+2 GT,44.0,24.0,1.34,0.0,Trips
+3 GT,66.0,16.0,1.68,0.0,Fails full trace
+4 GT,88.0,12.0,2.02,0.0,Passes
+2 GT + BESS,44.0,24.0,1.34,8.4,Passes

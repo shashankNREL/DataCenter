@@ -29,6 +29,7 @@ from gas_plant.dynamics.multishaft import (  # noqa: E402
     _rhs_factory as ms_rhs_factory,
 )
 from gas_plant.dynamics.torsional import TorsionalParams  # noqa: E402
+from gas_plant.unit import GasTurbinePlant  # noqa: E402
 from gas_plant.lm9000 import LM9000SimpleCycle, LM9000CombinedCycle  # noqa: E402
 
 
@@ -208,6 +209,19 @@ class TestMultishaftInvariants:
         rc = simulate_multishaft(np.array([0.0, 60.0]), np.array([15.0, 15.0]),
                                  params=MultishaftParams(ggov1=gp), sample_dt_s=1.0)
         assert rc.fuel_kg_s[-1] == pytest.approx(rb.fuel_kg_s[-1], rel=1e-4)
+
+    def test_constant_load_temperature_proxy_is_steady(self):
+        plant = GasTurbinePlant(rated_power_mw=22.0)
+        res = simulate_multishaft(
+            np.array([0.0, 60.0]),
+            np.array([15.0, 15.0]),
+            dispatch_fn=plant.dispatch,
+            sample_dt_s=1.0,
+        )
+        assert res.exhaust_T_K is not None
+        assert np.ptp(res.thermal_load_proxy_pu) < 1e-9
+        assert np.ptp(res.exhaust_T_K) < 1e-9
+        assert abs(res.freq_hz - 60.0).max() * 1000 < 0.1
 
 
 # ---------------------------------------------------------------------------

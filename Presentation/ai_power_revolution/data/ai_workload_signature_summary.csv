@@ -1,0 +1,2 @@
+window_hours,min_mw,mean_mw,peak_mw,max_abs_dpdt_mw_s,p99_abs_dpdt_mw_s,max_step_mw_per_100ms,min_step_mw_per_100ms,gpu_count_in_window,sample_count_in_window
+1.999972222222222,5.240548532227924,10.678159104630325,18.0,105.12561835096263,63.22959579051579,9.598717048856926,-10.512561835086702,6,394761

@@ -1,0 +1,7 @@
+case,f_min_hz,f_max_hz,trip,note
+"Single GT
+no buffer",20.7,71.1,Trips,Fast AI ramps exceed governor and inertia limits
+"Single GT
++ BESS",59.8,60.32,Rides through,Fast power mismatch is buffered before the turbine sees it
+"4 GT fleet
+no buffer",59.53,60.68,Rides through,More spinning machines add inertia and ramp capability

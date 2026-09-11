@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Who Powers Intelligence?</title>
+  <style>
+    :root {
+      --ink: #182026;
+      --muted: #58636f;
+      --blue: #2451a6;
+      --teal: #1b998b;
+      --red: #d1495b;
+      --amber: #f4a261;
+      --paper: #fbfaf7;
+      --line: #d8ddd9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e9ece8;
+      color: var(--ink);
+      font-family: Avenir Next, Avenir, Helvetica Neue, Helvetica, sans-serif;
+      line-height: 1.35;
+    }
+    .slide {
+      width: 13.333in;
+      min-height: 7.5in;
+      margin: 28px auto;
+      padding: 0.55in 0.72in;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 45px rgba(24, 32, 38, 0.16);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      page-break-after: always;
+    }
+    .title {
+      background:
+        linear-gradient(110deg, rgba(36, 81, 166, 0.13), transparent 45%),
+        linear-gradient(23deg, rgba(244, 162, 97, 0.16), transparent 58%),
+        var(--paper);
+    }
+    h1 {
+      margin: 0 0 0.22in;
+      font-size: 54px;
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 0 0 0.18in;
+      font-size: 36px;
+      line-height: 1.12;
+      letter-spacing: 0;
+      color: var(--blue);
+    }
+    p, li {
+      font-size: 26px;
+      max-width: 10.8in;
+    }
+    p { margin: 0.10in 0; }
+    ul { margin: 0.12in 0 0; padding-left: 0.36in; }
+    .kicker {
+      color: var(--muted);
+      font-size: 22px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.18in;
+    }
+    .big {
+      font-size: 38px;
+      line-height: 1.22;
+      max-width: 11.2in;
+    }
+    .prompt {
+      margin-top: 0.22in;
+      padding: 0.18in 0.22in;
+      border-left: 8px solid var(--amber);
+      background: rgba(244, 162, 97, 0.12);
+      font-size: 28px;
+      font-weight: 650;
+    }
+    .figure-slide { padding: 0.30in 0.42in 0.38in; }
+    .figure-slide h1 { font-size: 38px; margin-bottom: 0.12in; }
+    img {
+      width: 100%;
+      max-height: 6.6in;
+      object-fit: contain;
+      display: block;
+      margin: auto;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.48in;
+      align-items: start;
+    }
+    .note {
+      margin-top: 0.18in;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, monospace;
+      font-size: 22px;
+      background: #eef1ef;
+      padding: 0.04in 0.08in;
+      border-radius: 4px;
+    }
+    @media print {
+      body { background: white; }
+      .slide {
+        margin: 0;
+        box-shadow: none;
+        border: 0;
+        width: 13.333in;
+        height: 7.5in;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="slide title">
+    <div class="kicker">AI power and behind-the-meter generation</div>
+    <h1>Who Powers Intelligence?</h1>
+    <p class="big">Behind-the-meter generation, AI data centers, and the hidden dynamics problem.</p>
+    <p class="note">Rough deck generated from the DataCenter research repo, 2026-09-02.</p>
+  </section>
+
+  <section class="slide">
+    <h1>The Core Question</h1>
+    <p>AI power discussions often start with one number: <strong>How many megawatts?</strong></p>
+    <p class="big">This deck asks a more awkward question: <strong>Can the proposed power system follow the AI load fast enough to keep operating?</strong></p>
+    <p>That brings turbines, batteries, grid ties, software schedulers, fuel logistics, and emissions into the same conversation.</p>
+  </section>
+
+  <section class="slide">
+    <h1>Big Idea</h1>
+    <p>Behind-the-meter generation does not make a data center independent from power-system physics.</p>
+    <p>It changes who owns the physics:</p>
+    <ul>
+      <li>The data-center operator</li>
+      <li>The turbine and battery controls</li>
+      <li>The utility interconnection agreement</li>
+      <li>The AI workload scheduler</li>
+      <li>The emissions and fuel-supply plan</li>
+    </ul>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>AI Load Is Not Just Peak MW</h1>
+    <img src="figures/01_ai_workload_signature.png" alt="AI workload signature">
+  </section>
+
+  <section class="slide">
+    <h1>Takeaway</h1>
+    <p>The average load and peak load are not enough.</p>
+    <p>The stressful events happen when thousands of devices change state together. Those fast ramps can arrive in fractions of a second, much faster than a gas turbine can comfortably follow.</p>
+    <p class="prompt">Should large AI campuses have ramp-rate obligations?</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Enough MW Is Not Enough</h1>
+    <img src="figures/08_frequency_trip_story.png" alt="Frequency trip story">
+  </section>
+
+  <section class="slide">
+    <h1>What This Means</h1>
+    <p>A turbine can have enough rated power and still fail the job.</p>
+    <div class="two-col">
+      <p><strong>Rated power</strong><br>Can it eventually supply the load?</p>
+      <p><strong>Frequency ride-through</strong><br>Can it survive the first few seconds while the load changes?</p>
+    </div>
+    <p>That second question is often missing from casual AI-power discussions.</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Power Buffer Vs Energy Storage</h1>
+    <img src="figures/02_bess_power_buffer_timeseries.png" alt="BESS power buffer timeseries">
+  </section>
+
+  <section class="slide">
+    <h1>The Battery Is A Shock Absorber</h1>
+    <p>In this case, the battery is not mainly storing energy for hours.</p>
+    <p>It is absorbing and injecting power for seconds while the turbine follows the slower part of the load.</p>
+    <ul>
+      <li>MW is how wide the pipe is.</li>
+      <li>MWh is how big the tank is.</li>
+      <li>AI transients may need a wide pipe more than a huge tank.</li>
+    </ul>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Not All Batteries Are The Same</h1>
+    <img src="figures/03_bess_power_energy_sweep.png" alt="BESS power and energy sweep">
+  </section>
+
+  <section class="slide">
+    <h1>Discussion Point</h1>
+    <p>Most utility-scale batteries are built for roughly 1 to 4 hours.</p>
+    <p>The AI fast-ramp problem can look like seconds of support at very high power.</p>
+    <p>That is closer to UPS, flywheel, supercapacitor, or high-power inverter behavior than ordinary long-duration energy shifting.</p>
+    <p class="prompt">Should data-center UPS assets become part of the power-control strategy?</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Synchronization Is The Hidden Variable</h1>
+    <img src="figures/04_correlation_sweep.png" alt="Correlation sweep">
+  </section>
+
+  <section class="slide">
+    <h1>Why Correlation Matters</h1>
+    <p>If many independent jobs run at different times, their power swings partly cancel out.</p>
+    <p>If one huge training job makes thousands of accelerators move together, the facility can act like one giant synchronized load.</p>
+    <p class="prompt">Is the enemy total energy, peak power, or synchronization?</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>The Fleet Temptation</h1>
+    <img src="figures/05_fleet_tradeoffs.png" alt="Fleet tradeoffs">
+  </section>
+
+  <section class="slide">
+    <h1>More Turbines Help, But Not For Free</h1>
+    <p>More turbines provide more spinning inertia and more total ramp capability.</p>
+    <p>But running many turbines lightly loaded can waste fuel and increase maintenance exposure.</p>
+    <p class="prompt">A small fast buffer may be cheaper and cleaner than keeping extra turbines spinning at poor part load.</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Islanding Is Only Half The Story</h1>
+    <img src="figures/06_islanding_resiliency_summary.png" alt="Islanding resiliency summary">
+  </section>
+
+  <section class="slide">
+    <h1>Reconnecting Is Not Just Flipping A Switch</h1>
+    <p>An islanded site can survive if generation and load are prepared.</p>
+    <p>But reconnecting to the grid requires phase, frequency, and voltage matching. A naive reclose can create a much larger electrical event than the original outage.</p>
+    <p class="prompt">Who owns resynchronization risk for behind-the-meter generation?</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Architecture Tradeoff Map</h1>
+    <img src="figures/07_architecture_tradeoff_map.png" alt="Architecture tradeoff map">
+  </section>
+
+  <section class="slide">
+    <h1>One Honest Message</h1>
+    <p>None of these physics are new to power engineers.</p>
+    <p>What is timely is the combination:</p>
+    <ul>
+      <li>Very large AI loads</li>
+      <li>Fast software-driven variability</li>
+      <li>Private behind-the-meter generation</li>
+      <li>Batteries and UPS already on site</li>
+      <li>Flexible workloads that can sometimes wait seconds or minutes</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h1>Software Becomes A Power-Control Lever</h1>
+    <p>An AI scheduler could expose a power-shaping API:</p>
+    <ul>
+      <li>Ramp jobs gradually instead of all at once</li>
+      <li>Stagger checkpointing</li>
+      <li>Delay non-urgent jobs during grid stress</li>
+      <li>Respect site ramp-rate limits</li>
+      <li>Coordinate with battery state of charge</li>
+    </ul>
+    <p class="prompt">Should AI training schedulers be part of the energy system design?</p>
+  </section>
+
+  <section class="slide title">
+    <h1>Closing Thought</h1>
+    <p class="big">The AI power question is not only: <strong>Where will the energy come from?</strong></p>
+    <p class="big">It is also: <strong>Who is responsible for making intelligence electrically well behaved?</strong></p>
+  </section>
+
+  <section class="slide">
+    <h1>Regeneration Commands</h1>
+    <p>From the repo root:</p>
+    <p><code>pixi run python tools/presentation/run_all.py</code></p>
+    <p>Individual scripts and outputs are documented in <code>IMPLEMENTATION_NOTES.md</code>.</p>
+  </section>
+</body>
+</html>
