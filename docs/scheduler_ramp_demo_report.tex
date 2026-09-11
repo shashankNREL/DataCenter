@@ -1,0 +1,595 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage[T1]{fontenc}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue]{hyperref}
+\graphicspath{{/home/runner/work/DataCenter/DataCenter/Presentation/scheduler_ramp_demo/}}
+\setlength{\emergencystretch}{3em}
+\setlength{\parskip}{0.35em}
+\newcommand{\MW}{\,\mathrm{MW}}
+\newcommand{\MWh}{\,\mathrm{MWh}}
+\newcommand{\kWh}{\,\mathrm{kWh}}
+
+\title{Small Changes in When Computing Starts\\
+Can Make a Data Center Easier to Power\\[0.4em]
+\large A plain-language guide to the scheduler ramp study}
+\author{DataCenter repository}
+\date{September 11, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This study asks a deliberately simple question: can a data center make its
+power system's job easier by starting flexible computing work a few seconds
+apart instead of starting everything at once? The experiment keeps the
+requested work unchanged. It compares straightforward scheduling rules,
+then gives each rule the same opportunity to use gas turbines and a
+physically constrained battery. The power-management choice is the
+least expensive feasible option from a small, explicitly listed set.
+This is not a sophisticated scheduler, a global optimization proof, or a
+validated design for a commercial data center.
+
+The central distinction is between changing \emph{when} electricity is
+needed and reducing \emph{how much} useful computing is done. The former can
+reduce abrupt power changes without the latter. Any benefit must be
+weighed against delayed work, storage losses, and the limits of the
+power equipment. This report explains the physical ideas, the code,
+the comparison method, the results, and the claims that the study
+cannot support.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\section{The idea without any engineering background}
+
+Imagine a building in which many elevators all start moving at once.
+The motors suddenly ask the building's electricity supply for much more
+power. Letting some elevators start a few seconds later can soften that
+change, even if the elevators ultimately carry the same passengers.
+The analogy is about timing, not about deliberately making useful work slower.
+
+A data center has a similar opportunity when some of its work is flexible.
+Its computers can start many tasks together, or spread those starts over
+a short interval. The question is whether the delay is small enough to
+be acceptable and the electrical benefit large enough to matter.
+
+Three parts of the system have different jobs:
+\begin{itemize}
+\item \textbf{The scheduler} decides which waiting tasks may start.
+It does not generate electricity.
+\item \textbf{The gas turbines and generators} turn fuel into electrical
+power. Their rotating machinery and fuel controls take time to respond.
+\item \textbf{The battery} supplies or absorbs electricity quickly.
+It cannot supply unlimited power or run indefinitely without recharging.
+\end{itemize}
+
+The useful coordination is simple: do not ask the slow equipment to
+follow every sudden change if a small timing adjustment or a fast buffer
+can help. But using a battery is not free, and delaying work is not free
+from the customer's point of view.
+
+\subsection{Power and energy are different}
+
+\textbf{Power} is the rate of electricity use right now. \textbf{Energy}
+is the amount used over time. A megawatt (MW) measures power; a
+megawatt-hour (MWh) measures energy. One MWh is 1,000 kilowatt-hours (kWh).
+For example, a 6 MW discharge lasting ten seconds delivers
+\[
+6\times\frac{10}{3600}=0.0167\MWh \simeq 16.7\kWh.
+\]
+This is a large power delivered for a short time, not a large energy store.
+
+The battery needs both a sufficiently large power converter and enough
+stored energy. A calculation that asks for several MW and only a few
+tens of kWh is describing a short burst. It is not automatically a
+practical battery pack specification.
+
+\subsection{What is a ramp?}
+
+Here, a ramp means the change in power between consecutive one-second
+samples. A jump from 10 MW to 16 MW is a 6 MW/s one-second change.
+Spreading the same increase over twelve seconds can make the changes
+much smaller.
+
+The qualifier ``one-second'' matters. The turbine simulation receives
+loads that are held constant between updates and jump at the updates.
+The study does not establish an upper bound on the instantaneous or
+millisecond-scale change in a real computer's power.
+
+\subsection{Why frequency appears in the results}
+
+The generators rotate. If electrical demand rises before mechanical
+power has caught up, energy comes temporarily from that rotation and
+the machines slow down. Electrical frequency measures this rotation
+indirectly. The model's normal reference is 60 Hz.
+
+For this study, a coordinated operating choice must stay between
+59.4 and 60.6 Hz at the sampled times. A sampled crossing below
+57.8 Hz ends the published generator-only screening trajectory.
+These are study thresholds, not universal equipment guarantees.
+The model does not simulate what every device does after a plant trips.
+
+\section{The question, and the meaning of ``optimal''}
+
+The intended claim is:
+\begin{quote}
+Small, explainable adjustments to the timing of flexible work can improve
+the tradeoff between computing service and power-system operation.
+\end{quote}
+
+That is narrower than claiming that all assets operate at a global optimum.
+In this experiment:
+\begin{enumerate}
+\item The two generators are already online and share the load equally.
+Their number, on/off status, and individual economic dispatch are not optimized.
+\item The same installed battery is used when comparing schedules.
+Separate hardware sensitivity cases change that assumption explicitly.
+\item Every schedule is offered the same five power-management choices.
+\item Choices that violate the engineering checks are rejected.
+\item The remaining choice with the lowest modeled fuel and storage-use
+cost is selected.
+\end{enumerate}
+
+Thus ``best'' means \textbf{best feasible tested choice}, not best possible
+control law. Searching a small list of settings keeps the result transparent:
+the reader can see both the alternatives and why an alternative was rejected.
+
+\subsection{The cost objective}
+
+The illustrative operating cost is
+\[
+C = 0.25 F + 20 Q,
+\]
+where $F$ is total fuel consumed by the fleet in kg and $Q$ is the sum
+of battery charging and discharging energy in MWh. The assumed prices
+are \$0.25/kg of fuel and \$20/MWh of battery throughput.
+
+The battery term is a simple use-cost assumption, not a chemistry-specific
+aging calculation. The objective omits equipment purchase, financing,
+maintenance, emissions prices, and the monetary value of job delay.
+Delay is instead treated as a constraint. Small dollar differences in this
+short synthetic experiment must not be extrapolated directly to annual savings.
+
+\section{What the computer workload represents}
+
+A \textbf{node} is one modeled server. Each Frontier node represents four
+GPUs, specialized processors often used for AI work. A \textbf{cohort}
+is a group of nodes that starts together and runs for the requested duration.
+
+There are nine batch jobs, arriving in three waves. The first wave requests
+2,800 nodes, the second 2,700, and the third 2,400. In the synchronized
+case the first two waves run for 240 seconds per cohort and the last
+for 180 seconds. Arrivals occur at 120, 360, and 600 seconds.
+The simulation begins with a quiet background before the first arrival.
+
+The total is 7,900 node allocations across time, not 7,900 additional
+physical servers. The synchronized workload contains
+\[
+2800(240)+2700(240)+2400(180)=1{,}752{,}000
+\]
+useful node-seconds. A node-second means one node doing the modeled useful
+work for one second. A cohort that starts later also finishes later;
+its requested execution time is not shortened.
+
+\subsection{What flexibility is assumed}
+
+The batch work is assumed to consist of independently startable tasks.
+This is not a model of tightly synchronized distributed training,
+where many workers may have to begin together. It is also not a claim
+that individual online inference requests can wait several seconds.
+The constant background represents service that should not be delayed.
+The code also supports protected jobs that must start in full immediately;
+it rejects a scenario if capacity cannot meet that requirement.
+
+The work proxy proves accounting consistency within this model.
+It does not measure model-training convergence, tokens generated,
+customer response times, or AI quality. Communication overhead,
+startup energy, and changes in task speed with power are outside the model.
+
+\subsection{Three understandable scenarios}
+
+\begin{description}
+\item[Synchronized.] Equal durations within each wave; 1,600 background
+nodes. Replacement work is conveniently available near earlier completions.
+This is an intentionally favorable introductory example.
+\item[Irregular.] The same job sizes and arrivals, but durations of
+190, 270, 310, 175, 265, 205, 180, 230, and 150 seconds.
+Completions are less aligned; total useful work is 1,791,000 node-seconds.
+\item[Busy.] The synchronized jobs with 6,800 background nodes. Only
+2,672 of the 9,472 available nodes remain for batch jobs, so even
+immediate admission must queue some work.
+\end{description}
+
+The busy example is important: not every observed wait is caused by the
+smoothing rule. Some waiting would occur anyway because the facility is full.
+
+\section{The scheduling rules}
+
+All rules use the same arrival order, with job ID as a deterministic tie-breaker.
+They are not learning algorithms, priority optimizers, or deadline predictors.
+
+\begin{enumerate}
+\item \textbf{Immediate:} start all waiting work that fits.
+\item \textbf{512-node wave:} start no more than 512 flexible nodes each second.
+\item \textbf{256-node wave:} use the same rule with 256.
+\item \textbf{226-node wave:} use the same rule with 226.
+\item \textbf{Reuse plus 226:} start useful replacement work on nodes
+whose previous work just finished, then permit up to 226 additional
+active nodes. Count capacity before admitting any work.
+\end{enumerate}
+
+Why 226? The calibration adds about 0.002209 MW for each node that goes
+from idle to full activity. The whole-node budget below 0.5 MW/s is
+\[
+\left\lfloor\frac{0.5}{0.002209}\right\rfloor=226.
+\]
+The matched 226-node wave separates the effect of a smaller admission
+budget from the effect of the reuse rule.
+
+All strategies can physically reuse nodes. The difference is that fixed
+waves count replacement starts against their start budget, whereas the
+reuse rule can admit them in addition to newly powered activity.
+
+\subsection{No artificial full-power holding}
+
+When work finishes, it stops using the active-power increment.
+If there is no useful replacement work, the node returns to idle.
+The model does not burn extra electricity merely to make a plot smoother.
+Idle equipment still consumes the calibrated idle power.
+
+This makes shutdowns honest. New starts can be paced, but previously
+started tasks can finish together. Reuse plus 226 is therefore not a
+guarantee of a symmetric $\pm0.5$ MW/s facility ramp.
+It can also create overlap between old and new waves and perform worse
+than the simpler fixed-wave rule.
+
+\section{From active nodes to electrical demand}
+
+The Frontier component configuration gives 9,472 available nodes,
+about 7.307 MW of facility idle demand, and about 2.209 kW of additional
+power per fully active node. The calculation includes the modeled CPU,
+GPU, memory, networking, conversion losses, and cooling-distribution
+components.
+
+At each second the facility demand is
+\[
+P_{\mathrm{facility}}=P_{\mathrm{idle}}+
+N_{\mathrm{active}}\Delta P_{\mathrm{node}}.
+\]
+The active count includes the fixed background and useful batch work.
+In the synchronized case, 1,600 background nodes bring the pre-arrival
+demand to about 10.841 MW. Adding the first 2,800 batch nodes brings
+the immediate peak to about 17.025 MW.
+
+This is a fixed component-based screening model. It does not model
+changing weather, dynamic cooling, networking bottlenecks, or actual
+GPU utilization within a task. It should not be presented as a
+measurement of a present-day commercial AI campus.
+
+\section{Three distinct power calculations}
+
+\subsection{Generator-only reference}
+
+The facility demand alone is supplied to the GGOV1 multishaft model.
+GGOV1 represents fuel-control behavior; the multishaft extension represents
+the gas-generator and power-turbine rotational response.
+The two units are represented as one equal-sharing dynamic equivalent.
+Each has a 22 MW turbine power base and 23 MVA generator base.
+
+For this study, electrical demand is not reduced when frequency falls.
+This prevents an apparently successful result from relying on computing
+work silently consuming less power. It also changes the reference response
+relative to the older study, which used frequency-sensitive load damping.
+Old frequency numbers cannot be combined with the revised results.
+
+The unbuffered run is a diagnostic, not necessarily an acceptable operating
+choice. If it crosses the protection threshold, its published trace ends
+at that first sampled crossing and its full-study fuel total is left missing.
+
+\subsection{Ideal fast-buffer estimate}
+
+For continuity with the original demonstration, the code also calculates
+a lossless, unlimited ten-second smoothing split. The slowly changing
+target is assigned to the generator and the fast difference to an ideal buffer.
+This answers a useful preliminary question: how much short-duration
+power exchange would this particular filter request?
+
+It does not enforce a real battery's energy, efficiency, or inverter limits.
+Its energy swing is not the installed energy rating. Ratios of hundreds
+of times the energy rating per hour indicate a very short pulse requirement,
+not an ordinary battery configuration.
+
+\subsection{Constrained generator--battery operation}
+
+The coordinated calculation instead starts with actual installed ratings:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Assumption & Default value\\
+\midrule
+Battery maximum power, either direction & 6 MW\\
+Battery nominal stored energy & 1.5 MWh\\
+Allowed stored charge & 10--90\%\\
+Initial stored charge & 50\%\\
+Charging efficiency & 95\%\\
+Discharging efficiency & 95\%\\
+Generator reserved headroom & 2 MW\\
+Maximum one-second generator load change & 0.5 MW/s\\
+Final quiet energy-recovery period & 120 s\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The generator headroom is measured below the model's continuous ceiling.
+It is not a demonstration that the plant can survive losing one generator.
+The assumed inverter follows its one-second command perfectly within its
+power limit; switching dynamics and voltage control are not represented.
+
+Positive battery power supplies the facility. Negative power charges the
+battery. For every dispatch interval,
+\[
+P_{\mathrm{generator,electrical}}+P_{\mathrm{battery}}
+=P_{\mathrm{facility}}.
+\]
+This is an electrical allocation, not an assumption that the turbine's
+mechanical power instantly equals its electrical load. The turbine model
+receives the \emph{remaining electrical demand}. Temporary mechanical
+imbalance changes the rotating energy and frequency.
+
+Battery energy changes according to
+\[
+E_{k+1}=E_k+
+\frac{\eta_c P_{\mathrm{charge},k}
+-P_{\mathrm{discharge},k}/\eta_d}{3600}.
+\]
+Powers are in MW, energies in MWh, and each interval lasts one second.
+Charging and discharging losses mean that more electricity must be put back
+than was delivered to the facility.
+
+Storage commands are clipped to physical limits. Any resulting generator
+ramp or headroom violation is reported rather than hiding the unmet demand.
+A saturated battery is not automatically an infeasible case: it is infeasible
+if the resulting system fails the actual engineering checks.
+
+\subsection{The five tested operating choices}
+
+The choices are no storage action and smoothing times of 2, 5, 10, and
+20 seconds. In the latter cases a target follows demand gradually.
+The battery attempts to supply the difference.
+
+Near the end of the study, a scheduled quiet period restores the initial
+stored energy. The recovery period knows the experiment's endpoint.
+This is not a forecast-free controller for an endlessly running facility.
+Candidates that cannot restore the charge are rejected.
+
+The energy accounting uses the intervals $[0,T)$.
+The row at $T$ is an endpoint, not an extra second of fuel demand or battery
+use. Every schedule within a scenario is padded to the same endpoint,
+at least 240 seconds after the latest completion. This avoids counting
+extra background operation for only the slower schedules.
+
+\section{Reading the measurements correctly}
+
+\begin{description}
+\item[Useful work.] The integral of useful batch nodes over time.
+It must match across schedules within each scenario.
+\item[Full-start delay.] The time from a job's arrival until its last cohort
+starts. This is not the delay before its first cohort starts.
+\item[Additional delay.] A job's full-start time minus that same job's
+full-start time under immediate admission in the same scenario.
+\item[Completion extension.] How much later the final job finishes than
+under immediate admission. It need not equal the largest per-job delay.
+\item[Makespan.] Time from the first arrival to the final completion.
+The separate last-completion field is a timestamp from simulation start.
+\item[Maximum ramp.] The largest absolute one-second power change.
+\item[Event percentile.] A percentile calculated only over nonzero changes.
+A whole-trace 99th percentile can misleadingly be zero when changes are rare.
+\item[Feasible policy.] A tested power setting that passes every required
+limit. Missing best cost means none passed; it does not mean free operation.
+\end{description}
+
+The sensitivity analysis accepts the best tested schedule and power setting
+whose \emph{maximum additional per-job delay} fits an allowance of 0, 5, or
+15 seconds. It does not impose a 15-second bound on all capacity waiting.
+For example, the busy immediate baseline can already have a long queue.
+
+\section{Results of the completed study}
+\label{sec:results}
+
+The numerical comparisons in this section use regenerated output, not the
+older four-strategy results. Generator-only values and coordinated values
+must not be interchanged. Each hardware comparison uses a fixed installed
+battery; comparisons between hardware sizes are sensitivity studies, not
+capital-cost optimization.
+
+\subsection{How to read the figures}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{01_scheduler_power_ramp.png}
+\caption{Synchronized workload: active GPUs, facility demand, and one-second
+power changes. Look first at the opening rise and the final drop. Spreading
+starts changes the shape, not the amount of requested useful work.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{02_turbine_response.png}
+\caption{Generator-only screening. This is not the coordinated battery case.
+A trace that ends at a protection crossing is an unacceptable reference,
+not evidence of continued operation. Exhaust temperature is an estimate.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{03_strategy_tradeoffs.png}
+\caption{Different questions in one view: raw facility ramps, ideal-buffer
+power, unbuffered frequency versus delay, and best feasible coordinated
+operating cost. The ideal-buffer panel is not an installed-storage rating.
+The cost panel uses the default fixed hardware.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{04_fast_buffer_comparison.png}
+\caption{Coordinated immediate and fixed-226 operation with the same
+installed hardware. Electrical generator load is distinct from mechanical
+turbine power. Battery charge is restored at the end, so stored energy
+does not subsidize the apparent operating cost.}
+\end{figure}
+
+\section{How the code produces the study}
+
+The main entry point is
+\path{/home/runner/work/DataCenter/DataCenter/tools/workload/scheduler_ramp_demo.py}.
+Storage accounting is in
+\path{/home/runner/work/DataCenter/DataCenter/tools/workload/power_asset_dispatch.py}.
+The code follows the same order as the explanation:
+\begin{enumerate}
+\item \texttt{load\_frontier\_power\_calibration} reads component and topology
+values and derives idle demand and the active-node increment.
+\item \texttt{demo\_workload} constructs one of the three transparent scenarios.
+\item \texttt{simulate\_schedule} advances one second at a time. It retires
+finished cohorts, registers new arrivals, admits protected and flexible work,
+and records active nodes, queues, and job times.
+\item \texttt{align\_schedule\_windows} pads completed schedules with background
+activity so energy and cost share a common observation period.
+\item \texttt{add\_buffer\_columns} retains the separate, unlimited ideal estimate.
+\item \texttt{dispatch\_storage} applies power and stored-energy constraints,
+tracks losses, allocates residual generator demand, and restores charge.
+\item \texttt{run\_turbine} replays the generator's electrical demand through
+the dynamic model. Fuel is reported for the whole fleet.
+\item \texttt{compare\_asset\_policies} rejects unacceptable candidates and
+chooses the least costly feasible tested setting.
+\item \texttt{main} repeats the experiment for hardware sizes and scenarios,
+applies the delay allowances, and writes tables, traces, figures, and a manifest.
+\end{enumerate}
+
+No candidate scheduler predicts a turbine state or solves a complicated
+job-placement optimization problem. The separation is intentional:
+simple computing decisions are evaluated fairly against the same
+power-management capabilities.
+
+\subsection{Output guide}
+
+The output root is
+\path{/home/runner/work/DataCenter/DataCenter/Presentation/scheduler_ramp_demo/}.
+The synchronized case uses the root; other cases use the
+\texttt{irregular} and \texttt{busy} subdirectories.
+
+\begin{description}
+\item[\texttt{strategy\_summary.csv}] One row per strategy.
+Unprefixed frequency and temperature columns are generator-only results;
+\texttt{best\_} columns describe coordinated operation.
+\item[\texttt{dispatch\_candidates.csv}] All tested hardware/settings, costs,
+losses, feasibility decisions, and rejection reasons. Missing dynamic
+results can mean a candidate failed a simpler check before dynamic replay.
+\item[\texttt{job\_delays.csv}] Individual job arrival, start, and finish times.
+\item[Parquet traces.] Scheduler and turbine trajectories, plus the chosen
+coordinated dispatch and its turbine replay where a feasible choice exists.
+For a coordinated dispatch, row number is time in seconds.
+\item[\texttt{scenario\_comparison.csv}] Combined scenario summaries.
+\item[\texttt{sensitivity.csv}] Best feasible choices for each hardware
+and additional-delay allowance.
+\item[\texttt{run\_manifest.json}] Arguments, hardware assumptions, package
+versions, and source/configuration hashes for the run.
+\end{description}
+
+\section{Verification, reproducibility, and numerical limits}
+
+The existing tests check that work is preserved, no capacity is exceeded,
+protected jobs start immediately or fail explicitly, and completed nodes
+are not artificially held at full power. They also check physical storage
+power and energy balance, losses, charge restoration, saturation,
+infeasible cases, fleet scaling, protection handling, and finite-cost
+selection.
+
+The documented Python entry point runs all three scenarios and storage
+sensitivities by default. The existing Pixi task
+\texttt{pixi run scheduler-ramp-demo} invokes the same entry point when
+used in the configured workspace. The workspace currently targets
+Apple Silicon; Python dependencies were installed separately for the Linux
+run described here, and the manifest records the actual package versions.
+No project dependency was changed for that run.
+
+The dynamic output interval is 0.05 seconds by default.
+Frequency acceptance is based on sampled results, not a proof that no
+between-sample excursion exists. The simulation is a deterministic
+comparison, not a statistical estimate from many real workload days.
+Close rankings should be treated cautiously rather than advertised with
+more precision than the model justifies.
+
+\section{Temperature, shaft stress, and what not to claim}
+
+The exhaust estimate maps an existing filtered fuel-temperature signal
+through a ThermoPower part-load curve and shifts it to a documented
+LM2500 full-load exhaust point of 791 K. This is not blade metal temperature.
+The part-load shape and transient response are not calibrated to this
+particular generator installation.
+
+A lower peak rate of exhaust-temperature change may suggest a gentler
+transient. It does not establish reduced metal stress, fewer damaging
+cycles, or a known life extension. A longer sequence of smaller changes
+can have different total variation from one sharp change.
+
+The code retains optional torque and fatigue helpers, but those are not
+part of the default headline study. The underlying gas-path coupling,
+shaft dimensions, materials, and thermal states need appropriate validation
+before numerical fatigue damage can support equipment-life claims.
+
+\section{Conclusions and appropriate next steps}
+
+The important result is not that the scheduler is clever. The useful
+question is whether a modest amount of timing flexibility changes what
+the \emph{same power equipment} can do while respecting the computing
+service requirement.
+
+A defensible interpretation distinguishes three outcomes:
+\begin{enumerate}
+\item \textbf{Electrical smoothing:} the facility presents smaller abrupt
+changes to its power supply.
+\item \textbf{Operational feasibility:} a combination of scheduling and
+storage passes the selected engineering limits.
+\item \textbf{Economic preference:} among feasible tested alternatives,
+one has a lower modeled fuel-plus-storage-use cost.
+\end{enumerate}
+None of these automatically proves the other two. Nor does any establish
+a global optimum, improved AI throughput, or a smaller commercially
+viable battery without further evidence.
+
+For a real deployment, the next steps are to validate which workloads
+can be delayed, calibrate the plant and storage models, use realistic
+long-duration traces, and include reserve requirements, inverter and
+cooling dynamics, equipment costs, and battery lifetime.
+The simple scheduling rules should remain the starting point; additional
+complexity should be introduced only if a measured benefit justifies it.
+
+\appendix
+\section{Glossary}
+\begin{description}
+\item[GPU.] A processor suited to highly parallel calculations.
+\item[Node.] One modeled server containing CPUs, GPUs, and supporting hardware.
+\item[Cohort.] Nodes admitted together for the same requested execution time.
+\item[Scheduler.] The rule deciding when waiting computing work may start.
+\item[Islanded.] Operating without a large external grid supplying the balance.
+\item[Generator.] The electrical machine driven by the turbine.
+\item[Governor.] The control that adjusts fuel in response to operating conditions.
+\item[BESS.] Battery energy storage system, including its power converter.
+\item[State of charge.] Stored energy as a fraction of nominal battery energy.
+\item[Headroom.] Capacity deliberately left unused to provide an operating margin.
+\item[Throughput.] Here, total charging plus discharging energy; it does not mean
+computing throughput.
+\item[Screening model.] A simplified model for exploring possibilities before
+detailed design and validation.
+\item[Feasible.] Passing the stated checks, not necessarily meeting every
+requirement of a real installation.
+\end{description}
+
+\end{document}

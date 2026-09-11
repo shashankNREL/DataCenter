@@ -1,36 +1,74 @@
-# Scheduler-controlled GPU ramp demonstration
+# Small scheduling changes, coordinated power assets
 
 ## Purpose
 
-This screening study tests whether systematic activation and idling of GPU node
-groups can reduce the electrical ramp presented to an islanded gas-turbine
-fleet. It is intended to demonstrate research potential, not a deployable
-scheduler or an OEM-qualified turbine-life model.
+The question is whether starting **flexible batch work a few seconds apart**
+can make an islanded data center easier to power, without changing the amount
+of useful work. The scheduler is deliberately simple. Power management is
+evaluated separately, using the same generator fleet, storage hardware, limits,
+and candidate operating rules for every schedule.
 
-Run from the repository root:
+“Optimal” here means **lowest modeled fuel-plus-storage-use cost among the
+tested feasible policies**. It does not mean a globally optimal scheduler,
+economic unit commitment, or an optimized battery purchase. The two generators
+remain online and share load equally. This is an educational screening study,
+not a validated plant design or a guarantee about production AI workloads.
+
+The existing Pixi task runs the complete study:
 
 ```bash
 pixi run scheduler-ramp-demo
 ```
 
-Outputs are written to `Presentation/scheduler_ramp_demo/`.
+```bash
+python /home/runner/work/DataCenter/DataCenter/tools/workload/scheduler_ramp_demo.py
+```
+
+The second command is equivalent when the existing Python dependencies are
+already installed. The checked-in Pixi workspace targets `osx-arm64`; no Linux
+lockfile compatibility is implied.
+
+Outputs are written under
+`/home/runner/work/DataCenter/DataCenter/Presentation/scheduler_ramp_demo/`.
+The synchronized case uses that directory; the irregular and busy cases use
+its `irregular/` and `busy/` subdirectories. `--scenarios synchronized
+--no-sensitivity` runs a smaller demonstration. `--no-plots` omits figures.
 
 ## Strategies
 
-The deterministic workload has three synchronized waves of elastic jobs. Each
-Frontier node represents four GPUs. Every strategy schedules the same 7,900
-node cohorts for the same requested durations.
+The default workload has nine independent batch jobs arriving in three waves.
+Each Frontier node represents four GPUs. The jobs request 7,900 node
+allocations in total (nodes can be reused), not 7,900 distinct physical nodes
+or cohorts. In the synchronized case they require 1,752,000 useful node-seconds.
+Every strategy preserves each cohort's requested duration and that same work.
 
 | Strategy | Control action |
 |---|---|
-| Immediate activation | Activates or idles all available cohorts in one second. |
-| Fixed wave: 512 nodes/s | Limits admission to 512 nodes per second. |
-| Fixed wave: 256 nodes/s | Limits admission to 256 nodes per second. |
-| Completion-aware: 0.5 MW/s | Converts the electrical ramp budget to a node budget, reuses still-active completed nodes for queued work, and idles unused nodes in budgeted waves. |
+| Immediate activation | Starts all available work that fits, without intentional delay. |
+| Fixed wave: 512 nodes/s | Starts at most 512 nodes of flexible work each second. |
+| Fixed wave: 256 nodes/s | Starts at most 256 nodes each second. |
+| Fixed wave: 226 nodes/s | Matched comparison for the reuse rule below. |
+| Reuse + 226 new nodes/s | Replaces completing work immediately when useful work is queued, and permits up to 226 additional active nodes per second. |
 
-The experiment assumes jobs are malleable enough to start worker cohorts at
-different times. Applying the same control to strict gang-scheduled jobs would
-require whole-job admission instead.
+The last rule converts 0.5 MW/s into 226 nodes/s using the calibration below.
+It limits new load growth for flexible work, **not arbitrary load decreases**.
+Completed work always stops consuming its active-power increment. There is no
+dummy work or full-power holding to hide shutdowns. The fixed-wave policies
+also reuse physical nodes, but count replacement starts against their admission
+budget. Reuse can create extra overlap and need not outperform fixed waves.
+
+The three scenarios are:
+
+- **Synchronized:** equal durations within each wave, 1,600 background nodes.
+- **Irregular:** unequal job durations, also 1,600 background nodes.
+- **Busy:** synchronized arrivals with 6,800 background nodes, leaving only
+  2,672 nodes for batch work; capacity queues arise even without smoothing.
+
+The constant background represents service that must not be delayed. The
+`flexible=False` job option also requires immediate whole-job admission or
+raises an explicit capacity error. Flexible cohorts represent independent
+batch tasks, not synchronized training workers or individual online inference
+requests. Equal node-seconds are a work proxy, not measured AI productivity.
 
 ## Power and turbine coupling
 
@@ -41,31 +79,91 @@ The facility calculation uses the Frontier topology and component values in
 - 7.307 MW modeled facility idle power.
 - 2.209 kW added when one node moves from CPU/GPU idle to full utilization.
 
-Each strategy's one-second facility-power trace drives a two-unit LM2500 fleet
-through the GGOV1 multishaft model. The study then computes per-shaft torque and
-torsional fatigue for trajectories that remain above the 57.8 Hz trip level.
+These are fixed component-based screening values, not a dynamic cooling model
+or a calibration to a modern production AI campus.
 
-The 10-second BESS split uses a first-order low-pass target. Battery power is
-the fast mismatch between facility demand and that target; battery energy is
-the integrated mismatch. This is a comparative fast-buffer estimate and does
-not include state-of-charge management, inverter limits, or reserve margin.
+Three calculations are deliberately distinguished:
+
+1. **Generator-only reference:** the unsupplemented facility demand drives
+   the GGOV1 multishaft dynamic model. Load-frequency damping is disabled so
+   falling frequency cannot silently reduce the requested compute load.
+   Published trajectories stop at the first sampled crossing below 57.8 Hz;
+   fuel/cost for an interrupted trajectory is not a valid full-study total.
+2. **Ideal 10-second buffer:** a lossless, unlimited low-pass split estimates
+   fast power and energy exchange. This retains the original demonstration
+   for comparison; it is not an installed battery specification.
+3. **Constrained coordinated operation:** actual storage power is bounded by
+   its inverter, stored energy, efficiencies, and generator charging headroom.
+   The remaining electrical demand is replayed through the turbine model.
+   Mechanical power is a dynamic result, not assumed equal to an assigned
+   generator target. Generator electrical load plus battery power equals
+   facility demand at every dispatch interval.
+
+The default hardware is two 22 MW turbine-base units, a 6 MW / 1.5 MWh battery,
+10–90% charge bounds, initial charge of 50%, and 95% efficiency in each
+direction. Generator headroom is 2 MW below the model's continuous ceiling;
+this is not an N−1 reliability test. A final 120-second quiet recovery period
+restores initial stored energy, so discharging the battery cannot appear as
+free fuel savings. All schedules within a scenario use the same accounting
+window, including at least 240 seconds after the latest job completion.
+
+The same five power-management choices are tested for each schedule:
+no storage action, and smoothing times of 2, 5, 10, and 20 seconds. Shorter
+times follow demand faster; longer times ask storage to bridge more of the
+change. Recovery uses the known study endpoint, not a forecast-free production
+controller.
+
+A candidate must satisfy the generator's 0.5 MW/s **one-second electrical
+load-change** limit, headroom, 59.4–60.6 Hz sampled frequency band, mechanical
+ceiling, and terminal energy recovery. Battery clipping is physical and
+reported; it does not hide violations of those requirements. The dynamic
+model still sees one-second steps, not continuously ramped loads.
+
+Among feasible candidates, the study minimizes fleet fuel at an illustrative
+$0.25/kg plus storage charge-and-discharge throughput at $20/MWh. These are
+stated scenario assumptions, not market forecasts or a lifecycle-cost model.
+Fuel quantities scale with fleet size; exhaust temperature does not.
+
+Sensitivity cases use the same method with 2 MW / 0.5 MWh and 4 MW / 1 MWh
+storage. Delay allowances of 0, 5, and 15 seconds apply to the **largest
+additional full-start delay of any job relative to immediate admission in
+the same scenario**. Capacity waiting in the busy baseline is reported
+separately and is not erased by this definition. Hardware has no purchase
+cost in the objective, so this comparison establishes feasibility and
+operating tradeoffs, not an optimal installed battery size.
 
 ## Critical outputs
 
-`data/strategy_summary.csv` reports, for every strategy:
+Each scenario's `data/strategy_summary.csv` reports ramps, useful work, facility
+energy, job delay, completion extension, generator-only screening, ideal-buffer
+estimates, and the best feasible coordinated operating result.
 
-- Maximum, p95, p99, and event-conditioned p99 absolute ramp rate.
-- Maximum 10-second average ramp and seconds above 1 MW/s.
-- Frequency nadir and zenith, time outside 59.4-60.6 Hz, and time below 57.8 Hz.
-- Required BESS power, energy swing, equivalent duration, and buffered target ramp.
-- Per-shaft torque range plus HCF and LCF screening damage.
-- Estimated exhaust-temperature range, maximum and p99 temperature slew, and total temperature variation.
-- Mean and p95 full-start delay and makespan.
+- `last_completion_s` is a timestamp; `makespan_s` starts at the first arrival.
+- Unprefixed frequency/temperature columns describe **generator-only** runs;
+  `best_` columns describe the chosen **coordinated** run.
+- A missing best cost means no tested policy is feasible, not zero cost.
+- A whole-trace p99 ramp can be zero when fewer than 1% of seconds change.
+  Maximum and event-conditioned ramps are more useful here.
+- Lower peak temperature slew does not imply lower temperature range,
+  lower total cycling, or longer component life.
 
-The Parquet files retain the scheduler and turbine time series for further
-analysis. The figures compare activation and ramp, turbine response, the
-tradeoff between electrical benefit and scheduling delay, and the BESS power
-and energy time series before and after scheduler smoothing.
+`dispatch_candidates.csv` retains every tested hardware/policy combination,
+feasibility result, rejection reason, losses, and recovery error. Candidates
+that fail simple limits can be rejected before running expensive dynamics.
+`job_delays.csv` provides job-level details. Scheduler, generator-only, chosen
+storage dispatch, and chosen coordinated turbine traces are saved as Parquet.
+The dispatch row index is time in seconds; its final row is an endpoint,
+not an additional energy interval.
+
+The top-level data directory additionally contains `scenario_comparison.csv`,
+`sensitivity.csv`, and `run_manifest.json` (arguments, hardware assumptions,
+package versions, and source/configuration hashes). Only scenarios requested
+by a run appear in those combined tables.
+
+Figures show (1) starts and facility ramps, (2) generator-only response,
+(3) scheduling and power tradeoffs, and (4) coordinated operation with the same
+installed hardware. Torsion/fatigue helpers remain available for specialist
+screening but are not run or promoted as a main result.
 
 ## Temperature interpretation
 
@@ -85,12 +183,35 @@ calibrated exhaust-thermocouple model, heat transfer into component metal,
 cooling-flow dynamics, geometry, material properties, and validated
 temperature-cycle damage curves.
 
-## Next research steps
+## Implementation and verification log
+
+The revised study addresses the original critique by matching admission
+budgets, removing full-power holding, separating ideal from constrained storage,
+replaying residual generator demand, correcting fleet fuel accounting, and
+using common time windows. It adds irregular and capacity-constrained cases,
+explicit delay allowances, finite-policy cost selection, reproducibility
+metadata, and physical-invariant tests.
+
+Existing scheduler tests cover calibration, node-second conservation, capacity,
+protected work, matched admission, invalid inputs, constant traces, fleet
+scaling, battery power/energy balance, efficiency losses, charge recovery,
+saturation, infeasibility, protection crossing, and cost selection.
+
+The detailed novice-oriented explanation and results are in
+`/home/runner/work/DataCenter/DataCenter/docs/scheduler_ramp_demo_report.tex`.
+Build it with the repository's existing Tectonic dependency:
+
+```bash
+tectonic /home/runner/work/DataCenter/DataCenter/docs/scheduler_ramp_demo_report.tex
+```
+
+## Limits and next research steps
 
 1. Replay selected windows from `data/scheduler_data.csv` after validating its
    `time_start`, `time_end`, and `gres_alloc` schema.
-2. Replace elastic cohort admission with whole-job and SLA-aware variants.
-3. Co-optimize scheduler ramp limits and BESS power/state of charge.
+2. Validate workload flexibility, whole-job admission, and service guarantees.
+3. Extend the finite policy comparison to calibrated economic dispatch, battery
+   lifetime/capital costs, unit commitment, and longer-horizon charge management.
 4. Calibrate exhaust and component-metal thermal states against LM2500 data.
-5. Evaluate fairness, starvation, throughput, and prediction uncertainty over
-   longer workload ensembles.
+5. Evaluate fairness, starvation, prediction uncertainty, cooling, inverter
+   response, sub-second behavior, and reliability over longer workload ensembles.
