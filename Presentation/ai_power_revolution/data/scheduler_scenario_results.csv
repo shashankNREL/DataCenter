@@ -1,0 +1,4 @@
+scenario,selected_policy,background_nodes,peak_active_nodes,immediate_max_ramp_mw_s,optimized_max_ramp_mw_s,max_capacity_wait_s,max_extra_delay_s,completion_extension_s,best_battery_peak_mw,best_frequency_nadir_hz,best_operating_cost
+synchronized,226 nodes/s,1600,4400,6.184524,0.499179,0,12,10,0.0,59.472354,316.024051
+irregular,226 nodes/s,1600,5900,6.184524,0.499179,0,12,7,2.215966,59.406568,330.095633
+busy,226 nodes/s,6800,9472,5.901803,0.499179,240,11,0,0.0,59.482966,431.794069

@@ -69,7 +69,7 @@ Rated power answers: **Can it eventually supply the load?**
 
 Frequency ride-through answers: **Can it survive the first few seconds while the load changes?**
 
-That second question is the one often missing from casual AI-power discussions.
+On this two-hour trace, one, two, and three unbuffered turbines cross the trip threshold. Four turbines ride through, and one turbine also rides through when a fast battery handles the sudden changes.
 
 ---
 
@@ -99,15 +99,16 @@ Plain-English distinction:
 
 ---
 
-# Discussion Point
+# How To Read This Battery Chart
 
-Most utility-scale batteries are built for roughly 1 to 4 hours.
+- **MW is burst strength:** how much power the battery and inverter can push or absorb at once.
+- **MWh is endurance:** how long the stored energy can last.
+- The modeled 10-second split needs about **9.9 MW** but only **18.4 kWh**: about **6.7 seconds** at full power.
+- Its **540C-equivalent** ratio describes an extreme short burst. It is not a recommendation to operate an ordinary utility LFP battery at 540C.
 
-The AI fast-ramp problem can look like seconds of support at very high power.
+The cells, inverter, cooling, state-of-charge margin, and cycle life must all support the duty. The solution may be a purpose-built high-power battery, UPS, flywheel, supercapacitor, or a combination.
 
-That is closer to UPS, flywheel, supercapacitor, or high-power inverter behavior than ordinary long-duration energy shifting.
-
-Question: **Should data-center UPS assets become part of the power-control strategy?**
+Question: **Can data-center UPS assets also serve as the fast power shock absorber?**
 
 ---
 
@@ -194,6 +195,24 @@ An AI scheduler could expose a power-shaping API:
 - Avoid synchronized power shocks
 
 Question: **Should AI training schedulers be part of the energy system design?**
+
+---
+
+# Three Scheduler Scenarios
+
+![Scheduler scenario node rulers](figures/10_scheduler_scenario_rulers.png)
+
+---
+
+# What The Scheduling Study Means
+
+The scheduler starts at most **226 nodes per second** instead of switching on every requested node at once. It performs the same computing work, but turns a large electrical step into a gentler ramp.
+
+- **Synchronized:** jobs have matching durations, so their endings line up. The scheduler needs no battery action, but the last work finishes 10 seconds later.
+- **Irregular:** jobs finish at different times. Those repeated changes still require 2.22 MW of battery support in the best tested solution.
+- **Busy:** 6,800 nodes are already occupied. Some jobs wait four minutes because the cluster is full; the smoothing rule adds at most 11 seconds and does not delay the final finish.
+
+Across all three cases, the worst one-second power change falls by about **92%**.
 
 ---
 

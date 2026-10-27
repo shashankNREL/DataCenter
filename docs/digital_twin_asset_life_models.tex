@@ -1,0 +1,2374 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[margin=24mm,headheight=14pt]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array,tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage{xurl}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\definecolor{reportblue}{HTML}{2451A6}
+\definecolor{reportgreen}{HTML}{147D72}
+\definecolor{reportamber}{HTML}{8A5A00}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+\setcounter{tocdepth}{1}
+\setcounter{secnumdepth}{2}
+\setlist[itemize]{leftmargin=*,itemsep=3pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=*,itemsep=3pt,topsep=4pt}
+\renewcommand{\arraystretch}{1.18}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\unit}[1]{\,\mathrm{#1}}
+\newcommand{\sourcefile}[1]{\nolinkurl{#1}}
+\newcommand{\implemented}{\textbf{\textcolor{reportgreen}{EXISTS IN CODE}}}
+\newcommand{\proposed}{\textbf{\textcolor{reportblue}{PROPOSED MODEL}}}
+\newcommand{\limited}{\textbf{\textcolor{reportamber}{LIMITED MODEL}}}
+\newenvironment{readerbox}[1]{\begin{quote}\color{reportblue}\textbf{#1}\par\normalcolor}{\end{quote}}
+\newenvironment{warningbox}[1]{\begin{quote}\color{reportamber}\textbf{#1}\par\normalcolor}{\end{quote}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Data center asset-life models}
+\fancyhead[R]{\small Proposed research tool}
+\fancyfoot[C]{\thepage}
+
+\title{Data Center Equipment Life Models\\[6pt]
+\large A beginner's guide to equations, measurements, assumptions,\\
+software, time scales, and development work}
+\author{DataCenter research workspace}
+\date{19 October 2026}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+\maketitle
+\begin{abstract}
+A data center needs more than enough electrical power.
+Its equipment must also withstand changes in computer demand.
+This report describes four equipment models for a proposed digital twin.
+A digital twin is a computer model that receives measurements from real equipment.
+The four models cover transformers, gas turbines, batteries, and power converters.
+Each model predicts operating conditions and selected forms of accumulated damage.
+The report separates existing software from proposed development.
+It also explains how to compare operating plans on a laptop.
+The equations support research.
+They do not establish a guaranteed equipment retirement date.
+\end{abstract}
+\pagenumbering{roman}
+\hypersetup{pageanchor=true}
+
+\chapter*{How to Use This Report}
+\addcontentsline{toc}{chapter}{How to Use This Report}
+Read Chapters 1 and 2 first.
+Then read the chapter for the equipment that you want to study.
+Each equipment chapter gives its purpose, inputs, assumptions, equations, outputs, and checks.
+
+\begin{warningbox}{Writing standard}
+This report uses short sentences, direct statements, and one meaning for each defined name.
+These choices follow the intent of ASD-STE100 Simplified Technical English.
+Equipment names and mathematical names are necessary technical names.
+The report explains these names before their detailed use.
+No certified ASD-STE100 dictionary check has been completed.
+Do not treat this report as a certified compliance statement.
+Use a qualified language review before formal ASD-STE100 publication.
+\end{warningbox}
+
+\begin{warningbox}{Engineering limit}
+A damage estimate is not a measured remaining life.
+Equipment design, material data, past use, and maintenance affect the result.
+Keep equipment protection active.
+Do not use a research model to override a protection limit.
+\end{warningbox}
+
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{The System and Its Boundaries}
+\label{chap:system}
+\section{The question that the tool must answer}
+The tool compares ways to complete the same computer work.
+It predicts the power demand, temperatures, operating limits, and equipment damage for each way.
+The operator can then compare equipment wear with energy cost and service requirements.
+
+The tool must not protect one machine by hiding damage in another machine.
+For example, battery support can reduce turbine load changes.
+The same action can increase battery use and converter heating.
+
+\section{Four equipment groups}
+\begin{description}[style=nextline,leftmargin=0pt]
+\item[Transformer] A transformer changes the voltage level of an alternating electrical supply.
+Its windings carry current.
+Its insulation separates electrical conductors.
+\item[Gas turbine] A gas turbine burns fuel and turns a shaft.
+The shaft turns a generator, which supplies electricity.
+\item[Battery energy storage system, or BESS] A BESS stores electrical energy in cells.
+It includes cells, electrical connections, cooling, controls, and power converters.
+\item[Power converter] A power converter changes voltage, current, or the type of electrical supply.
+Battery converters and uninterruptible power supplies are examples.
+An uninterruptible power supply is called a UPS in equipment records.
+\end{description}
+
+\section{What is measured and what is calculated}
+Measurements describe the real equipment.
+The model uses measurements to set its starting condition and parameters.
+A parameter is a number that describes equipment behavior.
+For example, electrical resistance is a parameter.
+A state is a condition that changes with time.
+Cell temperature is a state.
+
+The tool calculates possible future conditions for candidate operating plans.
+These calculations are estimates, not future measurements.
+Keep measurement error and model error separate.
+
+\section{Use one electrical boundary}
+Choose the meters and supply connections before any life calculation.
+Use the following balance at one defined boundary:
+\begin{equation}
+P_{\mathrm{grid}}+P_{\mathrm{GT}}+P_{\mathrm{BESS}}
+=P_{\mathrm{IT}}+P_{\mathrm{cool}}+P_{\mathrm{aux}}+P_{\mathrm{loss}}.
+\label{eq:site-balance}
+\end{equation}
+All quantities in Equation~\ref{eq:site-balance} are powers in watts.
+The subscript grid identifies the utility connection.
+The subscript GT identifies the gas-turbine generators.
+The subscript IT identifies computers and associated computing equipment.
+The subscript cool identifies cooling equipment.
+The subscript aux identifies other site equipment.
+The subscript loss identifies losses inside the selected boundary.
+Positive BESS power means battery discharge at that boundary.
+Negative BESS power means battery charge.
+
+Do not add losses twice.
+A meter at a converter input already includes that converter's losses.
+Show the battery connection on the electrical drawing.
+Its position determines which transformer receives less current during discharge.
+
+\chapter{Units, Equations, and Safe Interpretation}
+\label{chap:foundations}
+\section{Read an equation}
+An equation describes a relationship between quantities.
+The symbol $=$ means that both sides have the same value.
+The symbol $\sum$ means add the listed quantities.
+The symbol $\int$ means accumulate a quantity over an interval.
+The expression $\dd x/\dd t$ means the change in $x$ per second.
+An exponent of 2 means multiply a quantity by itself.
+The function $\exp(x)$ means raise the mathematical constant $e$ to the power $x$.
+Here, $e$ is approximately 2.71828.
+
+\section{Use consistent units}
+\begin{longtable}{L{0.22\textwidth}L{0.19\textwidth}L{0.49\textwidth}}
+\toprule Quantity & Unit & Meaning \\ \midrule\endhead
+Time & s, h & One hour is 3600 seconds. \\
+Power & W, kW, MW & One watt is one joule per second. One megawatt is one million watts. \\
+Energy & J, kWh, MWh & Energy is accumulated power. One kilowatt-hour is 3.6 million joules. \\
+Temperature & $^{\circ}$C, K & Temperature in kelvin equals temperature in degrees Celsius plus 273.15. \\
+Current & A & Electrical charge that passes per second. \\
+Voltage & V & Electrical energy supplied per unit of charge. \\
+Resistance & $\Omega$ & The voltage difference per ampere for a resistive element. \\
+Charge capacity & Ah & One ampere-hour is 3600 coulombs of charge. \\
+Force per area & Pa, MPa & One megapascal is one million pascals. \\
+Turning force & N m & Force multiplied by its perpendicular distance from a rotation axis. \\
+Frequency & Hz & Repetitions per second. \\
+Dimensionless value & 1 & A ratio with no physical unit. \\
+\bottomrule
+\end{longtable}
+
+Use kelvin in temperature-dependent chemical rate equations.
+Do not substitute degrees Celsius into an equation that requires kelvin.
+Use seconds in differential equations unless the equation explicitly states another unit.
+Use hours when the reported accumulated exposure is in hours.
+
+\section{Separate three outputs}
+\begin{enumerate}
+\item An operating condition describes the equipment now.
+\item An exposure records how much heat, current, or repeated force the equipment experienced.
+\item A damage estimate converts exposure into a selected loss of capability.
+\end{enumerate}
+A remaining-life forecast needs more information than these three outputs.
+It needs past damage, future use, failure criteria, and evidence about the model error.
+
+\section{Status words in this report}
+\implemented{} means that the reviewed repository contains the calculation.
+It does not mean that the calculation predicts an actual asset's life.
+\limited{} means that the repository contains only part of the required behavior.
+\proposed{} means that the report specifies development work.
+An installed external library is not an implemented project feature.
+
+\chapter{Transformer Temperatures and Life}
+\label{chap:transformer}
+\proposed. This chapter specifies a model to be developed.
+The current research plan separates winding insulation from oil condition.
+
+\section{What the model represents}
+The core guides the changing magnetic field.
+The windings are insulated conductors around the core.
+Electrical losses heat the core, windings, oil, and nearby metal.
+The cooling system transfers this heat to the surroundings.
+The hottest winding location is called the hot spot.
+Its temperature affects the aging of paper insulation.
+Oil condition needs a separate model and separate measurements.
+
+This first model applies to one identified oil-filled transformer.
+Record the oil type and paper type.
+Record whether the oil is sealed from outside air.
+Do not apply mineral-oil chemistry to another fluid without evidence.
+
+\section{Inputs and parameters}
+\begin{longtable}{L{0.21\textwidth}L{0.21\textwidth}L{0.46\textwidth}}
+\toprule Quantity & Unit or form & Required source or use \\ \midrule\endhead
+Asset identity and connections & Equipment record & Identify the transformer, meters, supply paths, and battery connection. \\
+Rated current $I_R$ & A & Obtain from the equipment rating and selected winding. \\
+Phase currents and voltages & A and V & Prefer measurements at this transformer. Include unequal phase loading where important. \\
+Useful and exchanged electrical power & W and var & Obtain meter values. A var measures power exchanged with fields rather than converted to useful work. \\
+Current components $I_h$ & A & Obtain the current at the main supply frequency and its multiples. \\
+Rated loss components & W & Values $P_0$, $P_{\mathrm{dc},R}$, $P_{\mathrm{eddy},R}$, and $P_{\mathrm{stray},R}$ need test results or supported ranges. \\
+Outside temperature $T_A(t)$ & K or $^{\circ}$C & Use the local cooling-air measurement, not a distant weather station alone. \\
+Oil and winding temperatures & K or $^{\circ}$C & Set starting states and check the thermal model. \\
+Cooling mode & Discrete state & Record fan and pump status, switching thresholds, and equipment availability. \\
+Heat capacities $C_w,C_o$ & J/K & Fit from tests or obtain design information. \\
+Heat conductances $G_{wo},G_{oa}$ & W/K & Describe winding-to-oil and oil-to-air heat transfer. They can depend on cooling mode and temperature. \\
+Hot-spot factor $k_H$ & Dimensionless & Fit the relation between mean winding temperature and the hottest location. \\
+Rated temperature rises and exponents & K; dimensionless & Needed if the alternative loading-guide form is selected. \\
+Paper-aging values $B,T_{\mathrm{ref}},L_{\mathrm{ref}}$ & K; K; h & Match the insulation system and the selected reference definition. \\
+Oil condition and history & Laboratory records & Include acid level, water, inhibitor where present, oxygen exposure, oil additions, and treatment. \\
+Oil reaction parameters & Defined below & Fit separately from paper aging. Do not infer them from a workload trace. \\
+Operating and maintenance limits & Equipment-specific values & Obtain approved limits and intervention rules. \\
+Measurement and parameter errors & Ranges or distributions & Retain the source and uncertainty of each important input. \\
+\bottomrule
+\end{longtable}
+
+\section{Electrical loading and losses}
+The root-mean-square current gives the heating equivalent of a changing current.
+It is the square root of the mean squared current.
+Use the name RMS current after this definition.
+For separately measured frequency components,
+\begin{equation}
+I_{\mathrm{rms}}^2=\sum_h I_h^2,\qquad K=I_{\mathrm{rms}}/I_R.
+\end{equation}
+The integer $h$ identifies a multiple of the main supply frequency.
+Such a component is called a harmonic.
+The term $h=1$ is the main-frequency component.
+The load ratio $K$ has no unit.
+The loss components must use the same phase and winding basis.
+
+For a balanced supply without important waveform distortion,
+\begin{equation}
+I_{\mathrm{rms}}=\frac{P}{\sqrt{3}\,V_{\mathrm{LL}}\,\mathrm{PF}}.
+\end{equation}
+Here, $P$ is three-phase useful power in watts.
+The quantity $V_{\mathrm{LL}}$ is the voltage between phases in volts.
+The power factor $\mathrm{PF}$ is useful power divided by apparent power.
+Apparent power is the product of the relevant RMS voltage and current.
+Do not infer phase imbalance or harmonic currents from facility megawatts alone.
+
+A candidate reference-temperature loss model is
+\begin{equation}
+P_{\mathrm{loss}}=P_0+K^2\left[
+P_{\mathrm{dc},R}+F_E P_{\mathrm{eddy},R}+F_S P_{\mathrm{stray},R}
+\right].
+\label{eq:transformer-loss}
+\end{equation}
+The subscript $R$ means the rated reference condition.
+The term $P_0$ is the loss with no external load.
+The term $P_{\mathrm{dc},R}$ is winding resistance loss at the reference condition.
+The term $P_{\mathrm{eddy},R}$ is loss from circulating currents inside winding conductors.
+The term $P_{\mathrm{stray},R}$ is other load-related loss in nearby conducting parts.
+
+Candidate harmonic factors are
+\begin{equation}
+F_E=\frac{\sum_h h^2I_h^2}{\sum_h I_h^2},\qquad
+F_S=\frac{\sum_h h^{0.8}I_h^2}{\sum_h I_h^2}.
+\end{equation}
+These factors are dimensionless.
+Their form and applicable frequency range need transformer-specific review.
+Set load-dependent loss to zero when current is zero.
+Do not evaluate these fractions with a zero denominator.
+Do not multiply all losses by one harmonic factor.
+The RMS current already includes the contribution of the measured harmonics.
+
+Correct winding resistance for its actual temperature.
+A candidate conductor relationship is
+\begin{equation}
+R_w(T_w)=R_{w,\mathrm{ref}}\left[1+\alpha_w(T_w-T_{w,\mathrm{ref}})\right].
+\end{equation}
+Here, $R_w$ is in ohms and $\alpha_w$ is in inverse kelvin.
+The two temperatures must use the same scale.
+The coefficient and valid temperature range depend on the conductor.
+Other loss components need their own temperature corrections where important.
+
+\section{Preferred first thermal model}
+Use two heat-storage regions as a first proposed model.
+One region represents the winding and one represents the oil with associated structure.
+Let $P_w$ be the winding share of the losses.
+Let $P_o=P_{\mathrm{loss}}-P_w$ be the remaining share.
+Do not allocate a loss to both regions.
+Use
+\begin{align}
+C_w\frac{\dd T_w}{\dd t}&=P_w-G_{wo}(T_w-T_o),\\
+C_o\frac{\dd T_o}{\dd t}&=P_o+G_{wo}(T_w-T_o)-G_{oa}(T_o-T_A).
+\label{eq:transformer-thermal}
+\end{align}
+All powers and heat flows are in watts.
+The heat capacities are in joules per kelvin.
+The conductances are in watts per kelvin.
+Time is in seconds.
+These equations conserve stored heat within the stated two-region approximation.
+They also allow outside temperature to change without an artificial jump in equipment temperature.
+
+For a calibrated hot-spot estimate, use
+\begin{equation}
+T_H=T_o+k_H(T_w-T_o).
+\end{equation}
+The symbol $T_H$ is the hottest winding temperature.
+The factor $k_H$ maps the mean winding state to this location.
+This relationship requires test evidence.
+A simple model must not conceal a poorly known local temperature.
+
+\subsection{Alternative loading-guide equations}
+An alternative model uses a top-oil rise and a hot-spot rise.
+For fixed outside temperature and cooling mode, candidate relationships are
+\begin{align}
+\tau_o\frac{\dd\Delta T_o}{\dd t}&=\Delta T_{o,\infty}-\Delta T_o,\\
+\tau_H\frac{\dd\Delta T_H}{\dd t}&=\Delta T_{H,\infty}-\Delta T_H,\\
+\Delta T_{o,\infty}&=\Delta T_{o,R}
+\left(P_{\mathrm{loss}}/P_{\mathrm{loss},R}\right)^n,\\
+\Delta T_{H,\infty}&=\Delta T_{H,R}K^{2m}.
+\end{align}
+The rise states and rated rises use kelvin.
+The response times $\tau_o,\tau_H$ use seconds.
+The exponents $n,m$ are fitted dimensionless values.
+The last equation is a sinusoidal-load starting model, not a complete harmonic hot-spot model.
+Select the applicable IEEE C57.91 or IEC 60076-7 formulation before claiming conformity.
+Do not run the two alternative thermal models and add their aging outputs.
+
+\section{Paper-insulation aging}
+Paper separates conductors and provides mechanical support.
+Long exposure to high temperature reduces its strength.
+A candidate relative aging rate is
+\begin{equation}
+F_{\mathrm{age}}(T_H)=
+\exp\!\left[B\left(\frac{1}{T_{\mathrm{ref}}}-\frac{1}{T_H}\right)\right].
+\label{eq:paper-aging}
+\end{equation}
+Use kelvin for both temperatures.
+The parameter $B$ has units of kelvin.
+The reference temperature $T_{\mathrm{ref}}$ describes the selected insulation model.
+At that temperature, $F_{\mathrm{age}}=1$.
+It is a rate ratio, not a probability of failure.
+
+Accumulate equivalent reference-temperature aging hours:
+\begin{equation}
+L_{\mathrm{eq}}=\frac{1}{3600}\int_0^{t_f} F_{\mathrm{age}}(T_H(t))\,\dd t.
+\end{equation}
+The final time $t_f$ is in seconds.
+The output $L_{\mathrm{eq}}$ is in hours.
+If a supported reference duration $L_{\mathrm{ref}}$ is used, report
+\begin{equation}
+\mathrm{Reference\ loss\ of\ life}\;(\%)=100L_{\mathrm{eq}}/L_{\mathrm{ref}}.
+\end{equation}
+This percentage refers to the selected paper-aging model.
+It is not the percentage of total transformer life that has disappeared.
+
+\begin{readerbox}{Worked interpretation}
+For illustration, choose $B=15000\unit{K}$ and $T_{\mathrm{ref}}=383.15\unit{K}$.
+The reference temperature is $110\,^{\circ}$C.
+At $120\,^{\circ}$C, Equation~\ref{eq:paper-aging} gives an aging factor of about 2.71.
+Two hours at that constant hot-spot temperature give about 5.42 equivalent aging hours.
+These values apply only to this stated example.
+Use the temperature convention and coefficients required by the selected insulation model.
+\end{readerbox}
+
+\section{Separate oil-condition model}
+Oil cools the equipment and provides electrical insulation.
+Paper aging does not predict oil acidity or water content.
+Start with measured oil condition and a small fitted reaction model.
+An inhibitor is a chemical added to slow selected reactions.
+Oxidation is a reaction with oxygen that can produce unwanted compounds.
+
+One proposed model uses three dimensionless states.
+Let $a$ be an acid indicator divided by a specified reference value.
+Let $b$ be inhibitor concentration divided by its stated starting reference value.
+Let $c$ be dissolved oxygen concentration divided by a stated reference concentration.
+Define a candidate reaction rate
+\begin{equation}
+r_{\mathrm{ox}}=A\exp\!\left(-\frac{E_a}{R_gT_o}\right)
+\frac{c}{K_O+c}\frac{1}{1+\gamma b}.
+\end{equation}
+The coefficient $A$ has units of inverse seconds.
+The energy $E_a$ is in joules per mole.
+A mole is a standard measure of the number of molecules.
+The gas constant $R_g$ is approximately $8.314\unit{J\,mol^{-1}K^{-1}}$.
+The coefficients $K_O$ and $\gamma$ are dimensionless.
+The oil temperature $T_o$ must be in kelvin.
+This rate describes a fitted hypothesis, not established oil chemistry for this site.
+
+Candidate state equations are
+\begin{align}
+\frac{\dd a}{\dd t}&=\nu_a r_{\mathrm{ox}}-k_{\mathrm{rem}}a,\\
+\frac{\dd b}{\dd t}&=-\nu_b r_{\mathrm{ox}}b,\\
+\frac{\dd c}{\dd t}&=k_{\mathrm{air}}(c_{\mathrm{air}}-c)-\nu_c r_{\mathrm{ox}}.
+\end{align}
+The coefficients $\nu_a,\nu_b,\nu_c$ are fitted dimensionless response factors.
+The coefficients $k_{\mathrm{rem}},k_{\mathrm{air}}$ have units of inverse seconds.
+The quantity $c_{\mathrm{air}}$ represents the stated oxygen-exposure condition.
+Removal occurs only when a justified process is active.
+All concentrations must remain nonnegative.
+For oil without inhibitor, omit $b$ and its effect.
+Use prescribed oxygen exposure if the data cannot support an oxygen state.
+Do not fit all these coefficients from one oil sample.
+
+Water in oil and water in paper are separate quantities.
+A later water-transfer model must conserve water mass between them.
+It must also account for outside ingress, chemical production, and drying.
+Do not assume immediate oil-paper water equilibrium during a load change.
+
+\section{Time scales and equation solution}
+Calculate losses at electrical events or from properly preserved interval loss summaries.
+Advance Equation~\ref{eq:transformer-thermal} with a tested differential-equation solver.
+For constant coefficients, an exact linear update is also possible.
+Recalculate loss and cooling coefficients when the operating mode changes.
+For the alternative single-rise equations, Equation~\ref{eq:exact-lag} applies under fixed inputs.
+
+Choose thermal steps from the fastest retained thermal response.
+Several seconds can be an initial test choice, not an approved universal step.
+Integrate paper aging from the resolved hot-spot history.
+Oil-condition states can use larger steps when their rates vary slowly.
+Split their steps at oil treatment, oil addition, or a material temperature change.
+Keep temperature and chemistry states between days.
+
+\section{Assumptions and exclusions}
+The proposed first model assumes known connections and identifiable thermal parameters.
+It assumes the retained temperature states capture the decision-relevant hot regions.
+It excludes lightning, internal electrical discharge, bushing failure, and short-circuit mechanical damage.
+An abnormal electrical event requires a separate study.
+The paper-aging equation does not include every effect of moisture and oxygen.
+Add such effects only with supporting relationships and data.
+Oil replacement does not restore aged paper.
+Maintenance thresholds must come from approved asset-specific practice.
+
+\section{Outputs and required checks}
+Report phase loading, losses, winding temperature, hot-spot temperature, and oil temperature.
+Report equivalent paper-aging hours and the assumptions behind any reference-life percentage.
+Report oil indicators only when their model has calibration evidence.
+Include operating-limit violations, parameter uncertainty, and maintenance events.
+
+Check rated-load losses and the zero-current case.
+Check constant-load steady temperatures and cooling transitions.
+Check a changing outside temperature without an artificial equipment-temperature jump.
+At $T_H=T_{\mathrm{ref}}$, one hour must give one equivalent aging hour.
+Check nonnegative oil states and correct treatment events.
+Compare measured temperatures on separate operating periods.
+
+\section{Software and development status}
+\textbf{Open-source candidates:} pandapower or OpenDSS for electrical loading;
+SciPy or OpenModelica for thermal and chemistry equations.
+Evaluate the IEEE-hosted thermal-model project before implementing another loading-guide model.
+Check its license, equations, tests, and equipment scope.
+No transformer thermal or chemistry solver was found in the reviewed project modules.
+The existing transformer document is a research plan, not an implementation.
+
+\chapter{Gas Turbine Response and Life}
+\label{chap:turbine}
+\implemented. The repository contains a shaft-force and repeated-load damage calculation.
+The current default material and geometry values require asset-specific review.
+The calculation does not establish hot-part life.
+
+\section{What the model represents}
+Fuel burns in the gas turbine and supplies energy to rotating parts.
+One rotating group compresses the incoming air.
+Another rotating group supplies turning force to the electrical generator.
+Turning force is called torque.
+The output shaft between the power turbine and generator can twist slightly.
+Repeated twisting can cause fatigue.
+Fatigue means damage from repeated force or deformation.
+
+The gas flow between turbine groups is not a solid connecting shaft.
+Do not assign shaft-twist damage to a gas-flow relationship.
+Separate output-shaft fatigue from damage in blades and other hot parts.
+They have different temperatures, forces, and material properties.
+
+\section{Inputs and parameters}
+\begin{longtable}{L{0.22\textwidth}L{0.17\textwidth}L{0.49\textwidth}}
+\toprule Quantity & Unit & Required source or use \\ \midrule\endhead
+Demand history and event times & W; s & Include starts, load changes, stops, and loss of equipment. \\
+Generator and turbine power bases & VA; W & Keep the two normalization bases distinct in the existing code. \\
+Rated angular speed $\Omega_0$ & rad/s & Obtain the shaft speed and machine connection. A radian measures rotation angle. \\
+Rotating inertias $J_t,J_g$ & kg m$^2$ & Obtain design values or measured response. They describe resistance to a speed change. \\
+Stored-energy constants $H_t,H_g$ & s & An alternative representation of rotating inertia on a stated power base. \\
+Shaft stiffness $K_s$ and damping $C_s$ & N m/rad; N m s/rad & Obtain design or test values. They describe torque from twist and relative speed. \\
+Natural frequency $f_n$ and damping ratio $\zeta$ & Hz; dimensionless & An alternative way to fit the shaft response. \\
+Shaft diameters $D_o,D_i$ & m & Obtain the actual critical shaft section, not a generic turbine diameter. \\
+Local force factors & Dimensionless & Represent grooves, joints, surface finish, size, and other local effects where supported. \\
+Material repeated-load curve & Pa; cycles & Obtain a curve for the material, condition, temperature, and load type. \\
+Material limiting strengths & Pa & Required for mean-load corrections and checks against permanent deformation. \\
+Governor parameters & Listed below & Describe fuel-control gains, lags, and limits. Do not infer them from shaft geometry. \\
+Initial speeds, twist, and control states & Consistent units & Start from a measured or consistent operating state. \\
+Fleet size and load sharing & Count; fractions & Equal sharing is an assumption that needs checking. \\
+Frequency, voltage, and protection limits & Hz; V; s & Obtain approved settings and event logic. \\
+Metal and gas temperatures & K & Needed for a proposed hot-part model. Exhaust temperature alone is not metal temperature. \\
+Heat transfer and material expansion data & W/K; J/K; K$^{-1}$ & Needed for component-temperature and thermal-force calculations. \\
+High-temperature deformation data & Time-to-failure curves & Needed for a proposed creep model. Creep is slow permanent deformation under heat and force. \\
+Past use and maintenance & Equipment records & Include starts, hours, repairs, and inspections. \\
+\bottomrule
+\end{longtable}
+
+\section{Speed and fuel-control equations}
+The governor is the controller that changes fuel to regulate speed and power.
+GGOV1 is the name of the governor model used in this project.
+It contains speed control, an acceleration limit, and a fuel-derived temperature limit.
+Its temperature-limit signal is not a measured blade temperature.
+
+For a single equivalent rotor, the existing near-rated-speed equation has the form
+\begin{equation}
+2H\frac{\dd\omega}{\dd t}
+=p_m-p_e-D(\omega-1),\qquad f=f_0\omega.
+\label{eq:swing}
+\end{equation}
+The speed ratio $\omega$ is actual angular speed divided by rated angular speed.
+The powers $p_m,p_e$ are divided by the same stated generator power base.
+The inertia constant $H$ is stored rotating energy divided by that power base.
+It has units of seconds.
+The damping coefficient $D$ is dimensionless in this form.
+The frequencies $f$ and $f_0$ are in hertz.
+Do not use this small-speed-deviation approximation to interpret a large post-trip collapse.
+
+A simplified description of the existing speed-control path is
+\begin{align}
+T_P\dot p_f&=p_{e,t}-p_f,\\
+e_s&=\operatorname{clip}\left[(1-\omega)+R(p_{\mathrm{ref}}-p_f),e_{\min},e_{\max}\right],\\
+u_s&=K_Pe_s+x_s,\\
+\dot x_s&=K_Ie_s-K_{\mathrm{track}}(u_s-u),\\
+u&=\min(u_s,u_a,u_T).
+\end{align}
+A dot means a derivative with respect to seconds.
+The filtered power is $p_f$ and its lag is $T_P$ seconds.
+The input $p_{e,t}$ uses the turbine power base.
+The reference is $p_{\mathrm{ref}}$ and $R$ is the speed-power feedback coefficient.
+The function clip keeps a value between its lower and upper limits.
+The state $x_s$ stores the accumulated speed-control correction.
+The gain $K_P$ is dimensionless in this scaling.
+The gains $K_I$ and $K_{\mathrm{track}}$ have units of inverse seconds.
+The quantities $u_s,u_a,u_T$ are the speed, acceleration, and temperature-control requests.
+The selected request $u$ is the lowest request.
+The tracking term prevents an unselected control state from increasing without limit.
+Other feedback selections are supported in the code.
+This displayed speed-error equation shows the electrical-power feedback selection only.
+
+The valve state $v$ follows the selected request with position and movement limits:
+\begin{equation}
+\dot v=\operatorname{clip}\left[
+\frac{\operatorname{clip}(u,v_{\min},v_{\max})-v}{T_v},
+r_{\mathrm{close}},r_{\mathrm{open}}\right].
+\end{equation}
+The lag $T_v$ is in seconds.
+The movement limits are in inverse seconds for a dimensionless valve position.
+At a position limit, do not permit movement farther outside the limit.
+The full parameter register is given in Chapter~\ref{chap:status}.
+
+The multishaft model adds a separate air-compressor rotor speed.
+It currently transfers power through a linear gas-path approximation:
+\begin{equation}
+p_{\mathrm{gas}}=\max[0,K_c(\omega_c-\omega_{c,\mathrm{idle}})].
+\end{equation}
+The compressor speed ratio uses its own rated speed.
+The coefficient $K_c$ and idle-speed ratio are dimensionless.
+The source explicitly identifies this relationship as a placeholder.
+It needs data before asset-life conclusions can rely on it.
+
+\section{Two rotating groups and shaft twist}
+The following physical-unit equations explain the output-shaft model:
+\begin{align}
+J_t\dot\Omega_t&=\mathcal{T}_{\mathrm{in}}-\mathcal{T}_s,\\
+J_g\dot\Omega_g&=\mathcal{T}_s-\mathcal{T}_e,\\
+\dot\theta&=\Omega_t-\Omega_g,\\
+\mathcal{T}_s&=K_s\theta+C_s(\Omega_t-\Omega_g).
+\label{eq:shaft-physical}
+\end{align}
+The angular speeds $\Omega_t,\Omega_g$ use radians per second.
+The twist angle $\theta$ uses radians.
+The torques $\mathcal{T}_{\mathrm{in}},\mathcal{T}_s,\mathcal{T}_e$ use newton metres.
+The labels identify turbine input, shaft transfer, and generator electrical demand.
+Power and torque are related by $P=\mathcal{T}\Omega$.
+The electrical-demand torque is an equivalent mechanical load on the generator rotor.
+
+An alternative parameter set uses
+\begin{equation}
+J_{\mathrm{red}}=\frac{J_tJ_g}{J_t+J_g},\quad
+K_s=(2\pi f_n)^2J_{\mathrm{red}},\quad
+C_s=2\zeta(2\pi f_n)J_{\mathrm{red}}.
+\end{equation}
+The reduced inertia $J_{\mathrm{red}}$ has units of kilogram square metres.
+The constant $\pi$ is approximately 3.14159.
+The damping ratio $\zeta$ has no unit.
+The natural frequency $f_n$ describes free twisting oscillation.
+For illustration, 22 hertz gives one cycle about every 0.045 seconds.
+This is a model default, not a measured LM2500 shaft frequency.
+
+The implementation solves relative motion in normalized units.
+It imports the overall speed from the preceding multishaft calculation.
+Let $M_t=2H_t$, $M_g=2H_g$, and $M_r=M_tM_g/(M_t+M_g)$.
+The three quantities have units of seconds.
+Let $\omega_d$ be the difference between the two normalized rotor speeds.
+The implementation uses
+\begin{align}
+\dot\theta&=\Omega_0\omega_d,\\
+\dot\omega_d&=q_t/M_t+q_e/M_g-q_s/M_r,\\
+q_s&=k_{\mathrm{pu}}\theta+c_{\mathrm{pu}}\omega_d.
+\end{align}
+Here, $q_t=p_{\mathrm{in}}/\omega_t$ and $q_e=p_e/\omega_g$ are normalized torques.
+Both powers use the same generator power base.
+The implementation reconstructs rotor speeds from overall speed and $\omega_d$.
+Its shaft coefficients are
+\begin{equation}
+k_{\mathrm{pu}}=\frac{(2\pi f_n)^2M_r}{\Omega_0},\qquad
+c_{\mathrm{pu}}=2\zeta(2\pi f_n)M_r.
+\end{equation}
+Their numerical scaling differs from the physical-unit coefficients in Equation~\ref{eq:shaft-physical}.
+Do not mix the two parameter sets.
+With generator base $S_B$ in volt-amperes, torque conversion is
+\begin{equation}
+\mathcal{T}_s=q_sS_B/\Omega_0.
+\end{equation}
+The result is in newton metres under the stated machine-base convention.
+The current implementation prevents division by very small speed numerically.
+That guard does not validate operation near a stopped rotor.
+
+\section{Convert shaft torque to material force per area}
+Shear stress is force per area that tends to slide adjacent material layers.
+For a smooth circular hollow shaft, define
+\begin{equation}
+W_t=\frac{\pi(D_o^4-D_i^4)}{16D_o},\qquad
+\tau_s=\mathcal{T}_s/W_t.
+\end{equation}
+The section quantity $W_t$ is in cubic metres.
+Both diameters are in metres.
+The torque is in newton metres and shear stress is in pascals.
+The expression assumes a circular section and elastic response.
+It does not resolve grooves, coupling teeth, or a crack.
+Additional local-force factors need design evidence.
+
+\section{Count repeated-load cycles}
+A cycle is a load excursion with a defined range and mean.
+The range is the maximum minus minimum value.
+The amplitude is half the range.
+The mean is half the sum of the maximum and minimum values.
+The rainflow method is a standard name for counting cycles in an irregular history.
+It returns cycle amplitude, mean, count, and closure time.
+A partial cycle can receive a count of one half.
+Keep unresolved turning points when processing a history in pieces.
+
+The current demonstration separates slow torque changes from faster oscillations.
+It subtracts a five-second moving median to obtain the faster part.
+The median is the middle value in a sorted set of samples.
+It counts the slow part and the faster part with different assumed material curves.
+This split is a screening choice, not a universal material law.
+Check that it neither removes important cycles nor counts the same damage twice.
+Cycle counting itself is not restricted to histories with a constant mean.
+
+\section{Convert cycles to a damage estimate}
+A candidate correction for a nonzero mean stress is
+\begin{equation}
+S_{a,\mathrm{eq}}=\frac{S_a}{1-S_m/S_u}.
+\end{equation}
+The amplitude $S_a$, mean $S_m$, and limiting strength $S_u$ use the same stress unit.
+The output $S_{a,\mathrm{eq}}$ is an equivalent zero-mean amplitude.
+This is called the Goodman correction.
+Its applicability to torsional mean loads needs material-specific evidence.
+Do not use it near a strength limit as a substitute for a failure check.
+The code estimates shear strength as 0.6 times tensile strength.
+It also clips the correction denominator for numerical protection.
+Those choices require review for the actual shaft.
+
+The existing repeated-load relationship is
+\begin{equation}
+N_f=N_{\mathrm{ref}}
+\left(\frac{S_{a,\mathrm{ref}}}{S_{a,\mathrm{eq}}}\right)^m.
+\end{equation}
+The output $N_f$ is the estimated cycles to the selected material endpoint.
+The reference count $N_{\mathrm{ref}}$ is in cycles.
+The reference amplitude $S_{a,\mathrm{ref}}$ has the same unit as $S_{a,\mathrm{eq}}$.
+The slope $m$ is dimensionless.
+This form is called a Basquin relationship.
+It needs a measured curve for the correct load type and material condition.
+
+The existing accumulated damage calculation is
+\begin{equation}
+D_{\mathrm{shaft}}=\sum_i \frac{n_i}{N_{f,i}}.
+\label{eq:miner}
+\end{equation}
+The index $i$ identifies a counted cycle or cycle group.
+The number $n_i$ is the number of those cycles.
+This is called the Miner sum.
+The output has no unit.
+A value of one is a model reference endpoint, not a guaranteed failure boundary.
+The sum does not describe all effects of load order, crack growth, or maintenance.
+Do not convert one short artificial event directly into years of shaft life.
+
+\section{Proposed hot-part temperature model}
+\proposed. The code does not yet calculate calibrated blade or liner metal temperatures.
+A first thermal state for a selected part can use
+\begin{equation}
+C_m\dot T_m=G_{gm}(T_g-T_m)-G_{mc}(T_m-T_c).
+\end{equation}
+The metal, local gas, and cooling-fluid temperatures are $T_m,T_g,T_c$.
+They use kelvin or a consistent Celsius difference scale.
+The heat capacity $C_m$ is in joules per kelvin.
+The conductances $G_{gm},G_{mc}$ are in watts per kelvin.
+The gas temperature must describe the selected location.
+The measured exhaust temperature is not automatically this input.
+Several metal regions can be needed to calculate temperature differences within a part.
+
+Thermal expansion is a material's size change with temperature.
+A fully restrained teaching estimate for thermal stress is
+\begin{equation}
+\sigma_{\mathrm{th}}\approx \kappa E\alpha_m\Delta T_m.
+\end{equation}
+The elastic modulus $E$ is in pascals.
+The expansion coefficient $\alpha_m$ is in inverse kelvin.
+The temperature change $\Delta T_m$ is in kelvin.
+The dimensionless factor $\kappa$ represents restraint and geometry in this simplified expression.
+This estimate is not a blade stress solution.
+A free, uniformly heated part can expand without this restrained stress.
+Use design calculations or measurements to identify the actual local stress and strain.
+Strain means deformation divided by original length.
+
+If permanent strain is important, a proposed strain-based repeated-load curve is
+\begin{equation}
+\frac{\Delta\epsilon}{2}=
+\frac{\sigma_f'}{E}(2N_f)^b+\epsilon_f'(2N_f)^c.
+\end{equation}
+The strain range $\Delta\epsilon$ is dimensionless.
+The fitted strength $\sigma_f'$ and modulus $E$ use the same stress unit.
+The fitted strain coefficient $\epsilon_f'$ and exponents $b,c$ are dimensionless.
+The quantity $2N_f$ counts reversals rather than complete cycles.
+These coefficients require tests at relevant temperatures.
+Do not add this damage to a second estimate of the same cycles.
+
+\section{Proposed high-temperature deformation damage}
+\proposed. A simple time-fraction estimate is
+\begin{equation}
+D_{\mathrm{creep}}=\int_0^{t_f}
+\frac{\dd t}{3600\,t_r(\sigma(t),T_m(t))}.
+\end{equation}
+Time $t$ is in seconds.
+The function $t_r$ gives the supported time to a selected material endpoint in hours.
+It depends on local stress $\sigma$ and metal temperature.
+Use a measured material curve or an approved relationship for the part.
+This estimate does not include every interaction with fatigue or oxidation.
+Do not add creep and fatigue and call the sum a validated failure probability.
+
+\section{Time scales and the existing solution method}
+The multishaft routine advances 13 states with SciPy's RK45 method.
+RK45 is a changing-step integration method.
+The routine treats each input-load interval separately and carries its final state forward.
+The default maximum internal step is 0.5 seconds.
+The saved output spacing is a separate caller-selected quantity.
+
+The shaft routine then solves two relative-motion states.
+It linearly interpolates the preceding power and speed results.
+Its default saved sample rate is 1000 samples per second.
+Its maximum internal step is five times the output interval.
+Its relative error limit is $10^{-6}$ and absolute error limit is $10^{-9}$.
+These are software settings, not proof of a resolved physical input.
+
+\begin{warningbox}{Sampling limit}
+Interpolation adds intermediate values, not new measurement information.
+A one-second power record cannot establish the actual content of a 22-hertz electrical disturbance.
+Fast modeled responses can still be studied under explicitly assumed input shapes.
+Distinguish that controlled experiment from a reconstruction of measured shaft forcing.
+Check input bandwidth, output spacing, and internal solver steps separately.
+\end{warningbox}
+
+For long studies, fit a reduced response model over load, event shape, speed, and recent state.
+Include background vibration where measurements support it.
+Run the detailed shaft model for separate validation events and out-of-range inputs.
+Keep cycle history across event boundaries.
+For hot parts, advance metal temperatures continuously.
+Calculate temperature-dependent damage from those states, not from electrical ramp alone.
+
+\section{Outputs, assumptions, and development work}
+Existing outputs include frequency, fuel estimates, rotor speeds, valve state, shaft torque, and cycle damage.
+The current demonstration suppresses shaft-damage results when its sampled frequency crosses the trip threshold.
+The calculation does not implement a complete post-trip protection sequence.
+A production study needs event detection and correct disconnected operation.
+
+The present shaft defaults include 22 hertz and a 0.01 damping ratio.
+They include a 150 mm outer diameter and a 50 mm inner diameter.
+The selected steel strength and repeated-load curves are estimates.
+The demonstration assumes equal load sharing within the equivalent fleet.
+Review all these assumptions before claiming asset-specific life.
+
+Required development includes measured shaft properties and verified material curves.
+Add calibrated metal-temperature and hot-part stress models only when their inputs exist.
+Test repeated load changes near the shaft's natural frequency.
+A smaller ramp can still cause larger vibration if its repetition frequency excites the shaft.
+Validate cycle counting against independent examples.
+Check results under smaller integration steps and different saved sample rates.
+
+\textbf{Open-source candidates:} SciPy for state equations;
+ThermoPower with OpenModelica for plant physics;
+ANDES for generator and network dynamics;
+pyLife for cycle counting and material-fatigue methods.
+These libraries do not supply the actual turbine's geometry, material history, or approved life curves.
+
+\chapter{Battery Condition and Life}
+\label{chap:battery}
+\limited. The workload demonstration estimates battery power and energy movement.
+It does not provide a complete battery state or aging model.
+
+\section{What the model represents}
+A cell stores energy through chemical changes.
+A pack connects many cells to obtain the required voltage and charge capacity.
+The battery management system measures cells and enforces selected operating limits.
+State of charge, written SOC, is the estimated available charge fraction.
+Capacity is the charge that a stated test can remove under stated conditions.
+Resistance describes part of the voltage change caused by current.
+Neither quantity alone describes all battery health.
+
+Calendar aging is deterioration associated with time and operating condition.
+It continues during cycling and during rest.
+Cycle aging is the additional deterioration associated with charge and discharge use.
+These names are useful categories, not completely separate chemical processes.
+
+\section{Inputs and parameters}
+\begin{longtable}{L{0.22\textwidth}L{0.17\textwidth}L{0.49\textwidth}}
+\toprule Quantity & Unit or form & Required source or use \\ \midrule\endhead
+Cell chemistry and model & Equipment record & Identify the actual cell type, maker, age, and valid operating range. \\
+Series and parallel counts $N_s,N_p$ & Counts & Obtain the pack connection drawing and active string count. \\
+Requested converter power $P_{\mathrm{ac}}(t)$ & W & Use a stated alternating-current meter boundary. Positive means discharge. \\
+Conversion efficiencies & Dimensionless & Use measured charge/discharge efficiency maps. Include auxiliary power at its correct boundary. \\
+Initial SOC $z_0$ & Fraction & Use a checked estimate and its uncertainty. \\
+Beginning and current capacity & Ah & Record test temperature, current, voltage limits, and rest procedure. \\
+Open-circuit voltage $U_{\mathrm{oc}}(z,T)$ & V & Obtain a cell-specific curve. This is rested voltage at negligible current. \\
+Series resistance $R_0(z,T,\mathrm{health})$ & $\Omega$ & Obtain pulse tests at stated conditions. Separate cold behavior from permanent aging. \\
+Delayed-voltage values $R_p,C_p$ & $\Omega$; F & Fit a reduced electrical model. A farad is charge stored per volt. \\
+Charge efficiency $\eta_Q$ & Dimensionless & Use a supported charge-conversion value where needed. \\
+Core and surface temperatures & K & Use sensors and a checked estimate of internal temperature. \\
+Heat capacity and heat transfer & J/K; W/K & Obtain thermal tests, cooling data, or design information. \\
+Voltage temperature derivative & V/K & Needed if reversible chemical heat is included. \\
+Coolant temperature and flow & K; kg/s & Use the actual cooling boundary and operating mode. \\
+Current, voltage, SOC, and temperature limits & A; V; fractions; K & Obtain cell and pack limits for both directions. \\
+Required backup reserve & Wh; duration & Define required service and the expected outage load. \\
+Calendar-aging data & Storage tests & Include several SOC and temperature conditions and known starting health. \\
+Cycle-aging data & Cycling tests & Include cycle depth, mean SOC, temperature, and charge/discharge rate. \\
+Past exposure and balancing records & Time histories & Needed to initialize aging and represent weak-cell effects. \\
+Health-model coefficients and errors & Model-specific & Fit capacity and resistance separately where supported. \\
+\bottomrule
+\end{longtable}
+
+\section{Existing buffer calculation}
+The existing demonstration splits facility demand into slow and fast parts.
+With uniform sample interval $\Delta t$, it uses
+\begin{align}
+\alpha&=\Delta t/(\tau_b+\Delta t),\\
+P_{\mathrm{GT},k}&=(1-\alpha)P_{\mathrm{GT},k-1}+\alpha P_{\mathrm{load},k},\\
+P_{\mathrm{batt},k}&=P_{\mathrm{load},k}-P_{\mathrm{GT},k},\\
+E_{\mathrm{del},k}&=\sum_{j=0}^{k}P_{\mathrm{batt},j}\Delta t/3600.
+\end{align}
+The response time $\tau_b$ and sample interval are in seconds.
+If power is in megawatts, $E_{\mathrm{del}}$ is in megawatt-hours.
+Positive battery power supplies demand.
+The quantity $E_{\mathrm{del}}$ is accumulated delivered energy, not stored battery energy.
+During discharge, stored energy decreases while this delivered-energy quantity increases.
+The range of $E_{\mathrm{del}}$ estimates an ideal energy swing.
+It does not establish an installed pack capacity.
+
+This filter omits SOC limits, reserve requirements, converter limits, losses, and temperature.
+It does not include battery chemistry or aging.
+The power divided by energy swing is not a validated cell current rate.
+It can be very large for a short buffering event.
+Do not use that ratio as a cell-selection recommendation.
+
+\section{From site power to cell current}
+Let positive converter AC power mean discharge to the site.
+For a simple direction-dependent conversion model,
+\begin{equation}
+P_{\mathrm{dc}}=
+\begin{cases}
+P_{\mathrm{ac}}/\eta_{\mathrm{dis}},&P_{\mathrm{ac}}\geq0,\\
+\eta_{\mathrm{ch}}P_{\mathrm{ac}},&P_{\mathrm{ac}}<0.
+\end{cases}
+\end{equation}
+Both powers are in watts.
+The efficiencies are dimensionless numbers above zero and at most one.
+The DC label means direct current at the battery terminals.
+This simple model excludes separately accounted cooling and other auxiliary demand.
+At very low power, use measured loss maps rather than a fixed efficiency if necessary.
+
+For identical balanced cells with negligible connection loss,
+\begin{equation}
+V_{\mathrm{pack}}=N_sV,\quad I_{\mathrm{pack}}=N_pI,\quad
+P_{\mathrm{dc}}=N_sN_pVI.
+\end{equation}
+The cell voltage is $V$ and cell current is $I$.
+Pack capacity is $N_p$ times cell capacity in this approximation.
+Series connection raises voltage, not ampere-hour capacity.
+Add cable and connection losses separately when they matter.
+Unequal cell condition needs several cell groups or an explicit pack model.
+
+\section{A reduced electrical model}
+Use a resistance and one delayed-voltage state as a first model:
+\begin{align}
+V&=U_{\mathrm{oc}}(z,T)-IR_0-v_p,\\
+\dot v_p&=-\frac{v_p}{R_pC_p}+\frac{I}{C_p}.
+\label{eq:battery-electrical}
+\end{align}
+The state $v_p$ represents delayed voltage change from internal transport and reactions.
+Its unit is volts.
+The response time $R_pC_p$ is in seconds.
+The model is called an equivalent circuit because it uses electrical elements to represent cell behavior.
+It does not resolve chemical concentrations inside the cell.
+
+At fixed requested power, voltage and current must satisfy these equations together.
+For cell power $P_c=P_{\mathrm{dc}}/(N_sN_p)$, define $U_e=U_{\mathrm{oc}}-v_p$.
+For positive resistance, the low-current solution is
+\begin{equation}
+I=\frac{U_e-\sqrt{U_e^2-4R_0P_c}}{2R_0}.
+\end{equation}
+Use a numerically stable equivalent expression near zero power.
+A negative square-root argument means that this model cannot supply the requested power.
+Voltage and current limits can prevent operation before that mathematical limit.
+At zero resistance, use the limiting relationship $I=P_c/U_e$ where valid.
+Do not silently clip the current and leave the site power balance uncorrected.
+
+\section{State of charge}
+For each short interval with fixed health parameters, use
+\begin{equation}
+\dot z=-\frac{I_{\mathrm{eff}}}{3600Q_{\mathrm{avail}}},\qquad
+I_{\mathrm{eff}}=
+\begin{cases}
+I,& I\geq0,\\
+\eta_QI,&I<0.
+\end{cases}
+\end{equation}
+The capacity $Q_{\mathrm{avail}}$ is in ampere-hours.
+The charge efficiency $\eta_Q$ is dimensionless.
+The factor 3600 converts seconds to hours.
+Use a value supported by the selected cell model.
+Do not include the same energy loss again in both converter and cell efficiency.
+
+An aged battery can have $z=1$ while storing less energy than a new battery.
+When aging changes capacity, update charge inventory consistently with the selected aging model.
+Do not invent or remove stored energy by resetting SOC arbitrarily.
+Record the definition of SOC used by the model and battery controller.
+
+\begin{readerbox}{Worked interpretation}
+A 100 Ah cell supplying 50 A for ten minutes delivers about 8.33 Ah.
+Its SOC falls by about 0.0833 if capacity stays fixed and losses are neglected.
+This is a change of 8.33 percentage points, not an 8.33 percent capacity loss.
+The charge can be restored by charging.
+Permanent capacity loss cannot be restored by ordinary charging.
+\end{readerbox}
+
+\section{Cell temperature equations}
+For one temperature region, use
+\begin{equation}
+C_{\mathrm{cell}}\dot T=\dot q_{\mathrm{irr}}+\dot q_{\mathrm{rev}}
+-G_c(T-T_{\mathrm{cool}}).
+\end{equation}
+The heat capacity is in joules per kelvin.
+The conductance $G_c$ is in watts per kelvin.
+The heat rates use watts.
+For the stated circuit with fixed electrical parameters, a dissipative heat approximation is
+\begin{equation}
+\dot q_{\mathrm{irr}}=I^2R_0+v_p^2/R_p.
+\end{equation}
+The delayed-voltage element also stores energy.
+Thus $I v_p$ is not always equal to heat released at that instant.
+Check heat and stored-energy accounting for the chosen circuit.
+
+With discharge current positive, a candidate reversible heat term is
+\begin{equation}
+\dot q_{\mathrm{rev}}=-IT\frac{\partial U_{\mathrm{oc}}}{\partial T}.
+\end{equation}
+Use kelvin for the multiplying temperature.
+The derivative means the voltage change per kelvin at the specified cell state.
+This term can heat or cool the cell.
+Its sign convention must match the selected library and current definition.
+
+For a separate cell core and surface, use
+\begin{align}
+C_c\dot T_c&=\dot q_{\mathrm{gen}}-G_{cs}(T_c-T_s),\\
+C_s\dot T_s&=G_{cs}(T_c-T_s)-G_{sf}(T_s-T_f).
+\end{align}
+The subscripts identify core, surface, and cooling fluid.
+The generated heat is $\dot q_{\mathrm{gen}}$.
+Each heat capacity is in joules per kelvin and conductance in watts per kelvin.
+This model can represent an internal temperature above the measured surface temperature.
+Cooling power and room heat rejection must also enter the site balance.
+
+\section{Capacity and resistance health}
+Define capacity retention by
+\begin{equation}
+SOH_Q=Q_{\mathrm{avail}}/Q_{\mathrm{begin}}.
+\end{equation}
+The beginning capacity $Q_{\mathrm{begin}}$ and current capacity use the same test conditions.
+The letters SOH mean state of health.
+For resistance, report a separate ratio
+\begin{equation}
+r_R=R_{\mathrm{ref,aged}}/R_{\mathrm{ref,begin}}.
+\end{equation}
+Both resistance tests must use comparable SOC, temperature, and pulse duration.
+A cold cell can temporarily have higher resistance without that increase being permanent damage.
+Use health-dependent resistance maps in Equation~\ref{eq:battery-electrical}.
+
+Capacity loss reduces available charge and usually reduces usable backup energy.
+Resistance growth increases heating at fixed current and increases voltage sag.
+Power capability can become inadequate before a selected capacity endpoint is reached.
+An 80 percent capacity endpoint is a possible convention, not a universal data-center requirement.
+
+\section{A proposed calendar-aging model}
+Calendar aging occurs during rest and cycling.
+Its rate can depend on temperature, SOC, and existing condition.
+An illustrative dimensionless exposure state is
+\begin{align}
+\dot a_Q&=g_Q(z,T)/t_{\mathrm{ref}},\\
+g_Q(z,T)&=g_z(z)
+\exp\!\left[\frac{E_Q}{R_g}\left(\frac{1}{T_{\mathrm{ref}}}-\frac{1}{T}\right)\right],\\
+q_{\mathrm{cal}}&=k_Q a_Q^{\beta_Q}.
+\end{align}
+The reference duration $t_{\mathrm{ref}}$ is in seconds.
+The rate factor $g_Q$ and SOC function $g_z$ are dimensionless.
+The activation energy $E_Q$ is in joules per mole.
+The coefficient $k_Q$, exposure $a_Q$, and exponent $\beta_Q$ are dimensionless.
+The output $q_{\mathrm{cal}}$ is a capacity-loss fraction relative to beginning capacity.
+Fit the form and coefficients to the selected cell.
+Use a separate supported relationship for resistance growth.
+Do not assume capacity and resistance share the same activation energy or time exponent.
+
+This example accumulates prior exposure before applying the time exponent.
+It does not restart the battery's chemical age each hour.
+Adding $k_Q(\Delta t)^{\beta_Q}$ at every step would usually give step-dependent aging.
+The initial exposure state must reflect prior history or an explicit assumed starting condition.
+
+\section{Cycle use and cycle aging}
+Define current rate as
+\begin{equation}
+\mathcal{C}=|I|/Q_{\mathrm{avail}}.
+\end{equation}
+The numerical rate has units of inverse hours.
+A 1C current equals the capacity in ampere-hours divided by one hour.
+It does not guarantee one hour of delivered energy under every load and temperature.
+
+Count charge-state cycles using their depth and mean SOC.
+The cycle depth $d_i$ is the SOC range of cycle $i$.
+Let $\bar z_i$ and $\bar T_i$ describe its mean SOC and a justified temperature summary.
+A candidate incremental capacity-loss model is
+\begin{equation}
+\Delta q_{\mathrm{cyc}}=\sum_i n_i
+w_Q(d_i,\bar z_i,\bar T_i,\mathcal{C}_{\mathrm{ch},i},\mathcal{C}_{\mathrm{dis},i}).
+\end{equation}
+The fitted function $w_Q$ gives a dimensionless loss fraction per full cycle.
+The counts $n_i$ include partial cycles where supported.
+The two current-rate inputs distinguish charge and discharge.
+Use a separate fitted function $w_R$ for resistance growth.
+If temperature varies strongly, preserve more information than one cycle-average temperature.
+
+A useful use measure is equivalent full cycles:
+\begin{equation}
+N_{\mathrm{EFC}}=\frac{1}{2Q_{\mathrm{begin}}\,3600}
+\int_0^{t_f}|I(t)|\,\dd t.
+\end{equation}
+This definition counts both charge and discharge movement.
+One full discharge followed by one full charge gives about one equivalent full cycle.
+Equal equivalent-cycle counts do not imply equal damage.
+Depth, temperature, SOC, and current rate still matter.
+
+If independently fitted contributions can be combined, a first health update is
+\begin{align}
+Q_{\mathrm{avail}}&=Q_{\mathrm{begin}}[1-q_{\mathrm{cal}}-q_{\mathrm{cyc}}],\\
+R_{\mathrm{ref,aged}}&=R_{\mathrm{ref,begin}}[1+r_{\mathrm{cal}}+r_{\mathrm{cyc}}].
+\end{align}
+The four loss and growth quantities are dimensionless.
+This addition is an assumption, not a general chemical law.
+Some fitted cycle models already include calendar aging from the test duration.
+Do not count that aging again.
+Stop or mark the model invalid outside its calibrated health range.
+
+\section{Detailed chemical models}
+\textbf{PyBaMM} can represent internal lithium transport and selected damage reactions.
+Lithium transport means movement of lithium within cell materials and liquid.
+An unwanted surface layer can consume usable lithium.
+Lithium can also deposit as metal during unsuitable charging conditions.
+Particles can crack or lose electrical contact.
+These mechanisms need different parameters and can interact.
+Selecting every available mechanism does not make an uncalibrated model more accurate.
+
+A detailed model contains many internal concentration and electrical states.
+Its solver must satisfy transport equations and electrical balance together.
+Use it for cell-level studies, parameter checks, and reduced-model development first.
+Do not solve a detailed chemical model for every physical cell in each scheduling trial.
+
+\section{Time scales and equation solution}
+For fixed current and circuit parameters, use the exact update
+\begin{equation}
+v_{p,k+1}=R_pI+(v_{p,k}-R_pI)\exp[-h/(R_pC_p)].
+\end{equation}
+Advance SOC by the corresponding charge balance over $h$ seconds.
+Use a solver for temperature when heat generation or cooling varies materially.
+Solve current and voltage consistently at each power exchange.
+Make a new step at a charge/discharge change or operating-limit crossing.
+
+Electrical and thermal states need finer updates than permanent health states.
+Health can be updated in batches from preserved temperature and use histories.
+That choice must not remove hot intervals, charging restrictions, or incomplete cycles.
+After a health update, refresh capacity, resistance, losses, and available power.
+For detailed chemical models, let the library's tested solver select appropriate internal steps.
+Check its error settings and parameter range on representative cases.
+
+\section{Assumptions, outputs, and checks}
+The first pack model assumes balanced cell groups and known active connections.
+It does not predict every manufacturing defect, internal short circuit, fire, or physical damage.
+Temperature and voltage limits remain separate from ordinary aging predictions.
+Check weakest-cell behavior before using an average-cell result near a pack limit.
+
+Report SOC, terminal voltage, current, core/surface temperatures, and charge movement.
+Report capacity retention and resistance growth separately.
+Report usable backup energy under a stated load and temperature.
+Report requested power that could not be supplied and reserve-limit violations.
+Keep cooling demand and converter loss visible in the site energy balance.
+
+Check zero current, constant current, rest recovery, and charge/discharge reversal.
+Check energy balance, operating limits, and smaller calculation steps.
+Compare calendar tests and cycling tests that were not used to fit parameters.
+Short operating tests can validate voltage and temperature.
+They cannot by themselves validate years of permanent aging.
+
+\section{Software and development status}
+\textbf{Open-source candidates:} PyBaMM for detailed cell physics;
+BLAST-Lite for fitted cell-aging models;
+liionpack where supported pack-level electrical and thermal coupling is needed.
+Verify compatibility and maintenance before selecting the pack tool.
+Not every BLAST-Lite model supplies both capacity loss and resistance growth.
+Check the exact selected model and chemistry.
+Do not add PyBaMM and BLAST-Lite damage estimates for the same mechanism.
+
+The current project needs the electrical state model, thermal model, and realistic dispatch limits.
+It also needs reserve management, calibrated health updates, and pack-level checks.
+The existing power filter is useful as a comparison, not as a complete battery model.
+
+\chapter{Power Converter Temperatures and Life}
+\label{chap:converter}
+\proposed. Converter power-loss estimates are not a converter life model.
+
+\section{What the model represents}
+A power converter changes electrical voltage or current form.
+The battery converter moves energy between a DC battery and the AC site supply.
+A UPS can contain an AC-to-DC stage, a DC-to-AC stage, and a battery connection.
+Different stages have different losses and temperatures.
+Identify the actual equipment connection before assigning a load history.
+
+The proposed first model covers two component types.
+A semiconductor switch repeatedly starts and stops electrical current.
+Its junction is the active region inside the device.
+A capacitor stores electrical energy briefly and helps control voltage variation.
+The DC-link capacitor is connected to an intermediate DC supply inside the converter.
+Fans, control boards, magnetic parts, and other components also fail.
+The two proposed models do not represent every converter failure mode.
+
+\section{Inputs and parameters}
+\begin{longtable}{L{0.22\textwidth}L{0.17\textwidth}L{0.49\textwidth}}
+\toprule Quantity & Unit or form & Required source or use \\ \midrule\endhead
+Circuit connection and device count & Equipment drawing & Identify stages, parallel modules, cooling paths, and battery location. \\
+Power and direction & W & Include charge, discharge, standby, overload, and bypass modes. \\
+AC current and voltage & A; V & Include phase values, power factor, and distortion where available. \\
+DC voltage and current & V; A & Needed for loss and operating-limit calculations. \\
+Switching frequency $f_{\mathrm{sw}}$ & Hz & Obtain the actual control setting and any changes with mode. \\
+Switch conduction data & V; $\Omega$ & Device voltage drop or resistance versus current and temperature. \\
+Switching energies & J per event & Obtain turn-on, turn-off, and recovery data at stated voltage, current, gate setting, and temperature. \\
+Control settings and current paths & Device-specific & Determine which switch or diode carries current and for how long. \\
+Thermal resistances and heat capacities & K/W; J/K & Fit a supported thermal network from measurements or maker data. \\
+Coolant or air temperature and flow & K; kg/s & Include fan, pump, and heat-sink changes. \\
+Initial temperatures & K & Keep each required thermal state. \\
+Switch repeated-temperature life curve & Cycles & Obtain a curve for the package, mounting, and selected failure mechanism. \\
+Capacitor type and rating & F; V & Identify film or other technology and actual rated conditions. \\
+Capacitor current components & A RMS; Hz & Include repeated current variation at relevant frequencies. \\
+Capacitor effective series resistance & $\Omega$ & Obtain its frequency, temperature, and health dependence. \\
+Capacitor thermal data & J/K; K/W & Needed to estimate internal temperature, not only room temperature. \\
+Capacitor life and limit data & h; F; $\Omega$ & Obtain technology-specific life relationships and accepted parameter changes. \\
+Protection and operating limits & V; A; K; time & Apply separately from the accumulated damage estimate. \\
+History and maintenance & Records & Include module changes, capacitor replacement, and cooling maintenance. \\
+\bottomrule
+\end{longtable}
+
+\section{Switch conduction losses}
+Conduction means current flow while a device is on.
+For one device, average its instantaneous electrical loss:
+\begin{equation}
+P_{\mathrm{cond}}=\frac{1}{T_w}\int_{t}^{t+T_w}v_{\mathrm{on}}(s)i(s)\,\dd s.
+\end{equation}
+The averaging window $T_w$ is in seconds.
+The on-state voltage $v_{\mathrm{on}}$ is in volts and current $i$ is in amperes.
+Use the device's conducting-current direction consistently.
+The resulting loss is in watts.
+
+A resistance-based approximation is
+\begin{equation}
+P_{\mathrm{cond}}\approx R_{\mathrm{on}}(T_j)I_{\mathrm{rms,on}}^2.
+\end{equation}
+The resistance uses ohms and junction temperature is $T_j$.
+Here $I_{\mathrm{rms,on}}^2$ means the mean square current in that device over the full averaging window.
+The current is zero during intervals when the device does not conduct.
+Do not multiply by the on-time fraction again if it is already included.
+For a device with a fixed voltage-drop term, a candidate alternative is
+\begin{equation}
+P_{\mathrm{cond}}\approx V_0I_{\mathrm{avg,on}}+r_{\mathrm{on}}I_{\mathrm{rms,on}}^2.
+\end{equation}
+Use average current magnitude and appropriate direction-specific parameters.
+The quantities $V_0$ and $r_{\mathrm{on}}$ have units of volts and ohms.
+
+\section{Switching losses}
+The device also loses energy while it changes between on and off.
+For approximately repeated switching conditions,
+\begin{equation}
+P_{\mathrm{sw}}=f_{\mathrm{sw}}
+(E_{\mathrm{on}}+E_{\mathrm{off}}+E_{\mathrm{rec}}).
+\end{equation}
+Each energy is in joules per relevant switching event.
+The recovery term describes a supported diode recovery contribution.
+Check whether the maker's turn-on energy already includes that contribution.
+Do not count it twice.
+For varying conditions, sum the actual event energies over the averaging interval.
+Use measured or supported interpolation over current, voltage, temperature, and gate settings.
+Do not extend one test point across the entire converter operating range without evidence.
+
+Add conduction and switching loss for each device.
+Then add separately modeled capacitor, magnetic, connection, and auxiliary losses.
+Do not add the same converter efficiency loss again in the site balance.
+Battery internal resistance loss belongs inside the battery boundary.
+
+\section{Junction and cooling temperatures}
+One candidate thermal network is
+\begin{align}
+C_j\dot T_j&=P_j-(T_j-T_c)/R_{jc},\\
+C_c\dot T_c&=\sum_j(T_j-T_c)/R_{jc,j}-(T_c-T_h)/R_{ch},\\
+C_h\dot T_h&=(T_c-T_h)/R_{ch}-(T_h-T_f)/R_{hf}.
+\label{eq:converter-thermal}
+\end{align}
+The temperatures describe junction, shared case, heat sink, and cooling fluid or air.
+The heat capacities $C_j,C_c,C_h$ use joules per kelvin.
+The thermal resistances $R$ use kelvin per watt.
+The junction loss $P_j$ uses watts.
+For several devices, use the appropriate junction resistance in each first equation.
+The case receives heat from all included junctions.
+This network conserves heat under its stated boundary assumptions.
+Fit its number of regions and values to the device and cooling assembly.
+
+Maker data can instead give a fitted transient thermal response:
+\begin{equation}
+Z_{\mathrm{th}}(t)=\sum_{\ell=1}^{M}
+R_\ell[1-\exp(-t/\tau_\ell)].
+\end{equation}
+The function $Z_{\mathrm{th}}$ is the temperature rise per watt after a loss step.
+The resistances $R_\ell$ use kelvin per watt and response times $\tau_\ell$ use seconds.
+The count $M$ is the number of fitted terms.
+This fitted representation is often called a Foster network.
+Its internal states need not be temperatures at actual material boundaries.
+Do not connect those fitted internal points to a heat sink as if they were physical nodes.
+Use a consistent response calculation or a correctly transformed network.
+
+\section{Damage from repeated junction temperatures}
+Different materials expand by different amounts when heated.
+Repeated expansion can damage electrical connections and joining layers.
+Count cycles in the relevant junction-temperature history.
+For each cycle, retain temperature range $\Delta T_j$, mean temperature $\bar T_j$, and duration.
+Use a cycle definition consistent with the selected maker or test relationship.
+
+An illustrative fitted life relationship is
+\begin{equation}
+N_f=A_j\left(\frac{\Delta T_j}{\Delta T_{\mathrm{ref}}}\right)^{-m_j}
+\exp\!\left[\frac{E_j}{R_g}
+\left(\frac{1}{\bar T_j}-\frac{1}{T_{\mathrm{ref}}}\right)\right]
+\left(\frac{t_{\mathrm{hot}}}{t_{\mathrm{ref}}}\right)^{-n_j}.
+\end{equation}
+The coefficient $A_j$ is a reference cycle count.
+The reference temperature range is in kelvin.
+Both absolute temperatures in the exponential must use kelvin.
+The fitted activation energy $E_j$ uses joules per mole.
+The hot duration $t_{\mathrm{hot}}$ and reference duration use the same time unit.
+The exponents $m_j,n_j$ are dimensionless fitted values.
+The supported duration definition is specific to the selected curve.
+This equation is a candidate form, not a universal semiconductor life law.
+
+Accumulate supported cycles with Equation~\ref{eq:miner}.
+Report separate results if several independent connection failure modes are modeled.
+Do not treat every switching action as one full junction-temperature cycle.
+The heat capacity can strongly reduce the temperature swing at switching frequency.
+Conversely, do not remove power-frequency temperature cycles without checking their contribution.
+Some converters have important loss variation near 100 or 120 hertz.
+The actual frequencies and amplitudes depend on the circuit and operating point.
+
+\section{Capacitor loss and internal temperature}
+Repeated capacitor current causes heating.
+For current components at frequencies $f_r$, use
+\begin{equation}
+P_{\mathrm{cap}}=\sum_r I_{r,\mathrm{rms}}^2
+\operatorname{ESR}(f_r,T_{\mathrm{cap}},\mathrm{health}).
+\end{equation}
+ESR means effective series resistance.
+It represents a capacitor's dissipative electrical behavior at a stated frequency.
+The currents use amperes and ESR uses ohms.
+The resulting loss uses watts.
+Do not replace this sum with one total current and an unrelated single-frequency ESR.
+
+For a first internal-temperature model,
+\begin{equation}
+C_{\mathrm{cap}}\dot T_{\mathrm{cap}}=
+P_{\mathrm{cap}}-(T_{\mathrm{cap}}-T_{\mathrm{cool}})/R_{\mathrm{cap}}.
+\end{equation}
+The heat capacity is in joules per kelvin and resistance in kelvin per watt.
+The temperature $T_{\mathrm{cap}}$ represents the fitted internal hot region.
+It is not necessarily equal to the measured case temperature.
+
+\section{Capacitor life estimate}
+A possible fitted constant-condition life relationship is
+\begin{equation}
+L(T,V)=L_{\mathrm{ref}}
+\exp\!\left[\frac{E_c}{R_g}\left(\frac{1}{T}-\frac{1}{T_{\mathrm{ref}}}\right)\right]
+\left(\frac{V_{\mathrm{ref}}}{V}\right)^{n_c}.
+\end{equation}
+The life $L$ and reference life $L_{\mathrm{ref}}$ use hours.
+The temperatures use kelvin and voltages use the same unit.
+The activation energy $E_c$ uses joules per mole.
+The voltage exponent $n_c$ is dimensionless.
+Select a relationship for the actual capacitor technology and dominant aging mechanism.
+Do not assume that every capacitor obeys a ten-degree life-doubling rule.
+Voltage spikes and operating-limit violations need separate checks.
+
+For a supported changing-condition time-fraction model,
+\begin{equation}
+D_{\mathrm{cap}}=\int_0^{t_f}\frac{\dd t}{3600L(T_{\mathrm{cap}}(t),V(t))}.
+\end{equation}
+The integration time is in seconds.
+The dimensionless result measures exposure relative to the selected life relationship.
+It does not directly predict the change in capacitance or ESR.
+Those outputs need additional fitted state relationships and measurement checks.
+If ESR grows, recalculate loss and temperature rather than holding the original loss forever.
+
+\section{Time scales and solution method}
+Use a short switching-waveform study to identify loss maps where necessary.
+It may need microsecond-scale steps, depending on switching frequency and the requested detail.
+Check the actual circuit and solver before choosing a step.
+Do not use those steps for every month of an equipment-life study.
+
+During long studies, evaluate average device loss from validated maps.
+Advance the thermal network with an appropriate state-equation solver.
+Use the exact exponential update for fixed-input independent fitted branches when valid.
+Use a matrix or numerical solver for coupled thermal regions.
+Retain enough loss variation to resolve all important junction-temperature cycles.
+
+Count thermal cycles after thermal states have been resolved.
+Keep incomplete cycle history between time blocks.
+Integrate capacitor exposure from resolved internal temperature.
+Advance slow parameter changes in larger batches only after checking the resulting error.
+When cooling mode changes, make an exchange point and retain the old thermal state.
+
+\section{Assumptions, outputs, and development work}
+Report total converter loss and the loss assigned to each component.
+Report junction, case, cooling, and capacitor internal temperatures.
+Report counted temperature cycles, supported damage sums, and validity limits.
+Report voltage, current, and temperature violations separately.
+State which converter parts and failure mechanisms remain outside the model.
+
+The project needs converter-specific loss data, thermal parameters, and package-life curves.
+It also needs a complete integration with BESS and UPS operating modes.
+Check steady load, loss steps, cooling changes, charge/discharge reversal, and shared-case heating.
+Compare an averaged model with detailed event calculations before using it for policy ranking.
+
+\textbf{Open-source candidates:} SciPy for reduced loss and thermal models;
+OpenModelica and the Modelica Standard Library for selected circuit studies;
+pyLife for reusable cycle-counting methods.
+These tools still need device-specific parameters and independent checks.
+PyPowerSim is a useful published reference for loss and thermal methods.
+Its reviewed license prohibits commercial use without additional permission.
+It is not an unrestricted open-source default for this project.
+
+\chapter{Time Scales and Laptop Studies}
+\label{chap:computing}
+A shared operating history does not require a shared calculation step.
+Use detailed calculations for selected events.
+Use checked simpler models for long operating histories.
+
+\section{Five different meanings of time}
+The observation period is the period covered by measurements.
+The study period is the period covered by a model run.
+The response time describes how quickly an equipment condition changes.
+The calculation step is the interval used to advance an equation.
+The decision interval is the time between changes to an operating plan.
+These five periods need not be equal.
+
+\begin{readerbox}{Important distinction}
+A shaft force can change in milliseconds.
+The resulting repeated-load damage can accumulate over years.
+Transformer oil can take hours to approach a new temperature.
+The insulation still ages during each part of those hours.
+Neither fact requires every model to use a millisecond calculation step.
+\end{readerbox}
+
+\section{Typical response periods}
+The periods below are examples, not equipment specifications.
+Confirm them with equipment data and step-size checks.
+One millisecond is one thousandth of a second.
+One microsecond is one millionth of a second.
+
+\begin{longtable}{L{0.20\textwidth}L{0.31\textwidth}L{0.37\textwidth}}
+\toprule Equipment & Fast response & Slower response and damage \\ \midrule\endhead
+Transformer & Current and electrical losses change with the load. & Winding temperatures can change over seconds to minutes. Oil temperatures often change over minutes to hours. Chemistry and insulation condition change over much longer histories. \\
+Gas turbine & Turning force and shaft motion can change over milliseconds to seconds. & Fuel controls act over fractions of a second to seconds. Component metal temperatures can change over seconds to hours. Damage accumulates from repeated changes and hot operation. \\
+Battery & Current and terminal voltage change over milliseconds to seconds. & Charge changes with current and duration. Temperature changes over seconds to hours. Chemical damage depends on both time and use. \\
+Power converter & Switches change electrical connections over microseconds to milliseconds. & The small semiconductor regions can heat quickly. Larger parts and cooling equipment respond more slowly. Temperature cycles and hot operating time contribute to damage. \\
+Workload scheduler & A job can start or end at a recorded event time. & The plan can be revised less often than equipment states are calculated. Job deadlines can extend beyond the current planning period. \\
+\bottomrule
+\end{longtable}
+
+\section{A common clock with separate calculation steps}
+Let $\mathbf{x}_a$ contain the changing conditions for asset $a$.
+For example, it can contain oil and winding temperatures.
+Let $\mathbf{u}_a$ contain its inputs.
+Let $\mathbf{p}_a$ contain its parameters.
+A general equipment equation is
+\begin{equation}
+\frac{\dd\mathbf{x}_a}{\dd t}
+=\mathbf{f}_a(\mathbf{x}_a,\mathbf{u}_a,\mathbf{p}_a).
+\label{eq:general-state}
+\end{equation}
+The function $\mathbf{f}_a$ gives the rate of change of each state.
+Bold symbols contain several numbers.
+The subscript $a$ identifies an asset, not an additional physical unit.
+
+Each solver advances its own states between agreed exchange times.
+A solver is software that advances an equation through time.
+An exchange time is a time when connected models share values.
+For exchange interval $H$, use
+\begin{equation}
+t_{k+1}=t_k+H,\qquad
+h_a\leq H.
+\end{equation}
+Here, $k$ counts exchanges and $h_a$ is an internal calculation step.
+All times use seconds.
+The asset can take many internal steps during one exchange interval.
+Use an extra exchange at a job start, trip, or cooling-mode change.
+Do not delay a known event until the next routine exchange.
+
+Keep states at each exchange.
+Do not restart a hot transformer at room temperature.
+Do not restart a battery at its original charge.
+Keep unfinished repeated-load cycles when processing the next interval.
+
+\section{Three ways to advance an equation}
+\subsection{A direct update for one temperature state}
+Consider a temperature $T$ with a fixed target $T_\infty$ and response time $\tau$:
+\begin{equation}
+\tau\frac{\dd T}{\dd t}=T_\infty-T.
+\end{equation}
+If the inputs stay fixed during a step of length $h$, the exact update is
+\begin{equation}
+T_{k+1}=T_\infty+(T_k-T_\infty)\exp(-h/\tau).
+\label{eq:exact-lag}
+\end{equation}
+The temperatures can use degrees Celsius in this difference equation.
+The quantities $h$ and $\tau$ must use the same time unit.
+This update is inexpensive.
+It does not resolve changes that were removed from the input history.
+Split the interval when the target or operating mode changes.
+
+\subsection{A solver that changes its internal step}
+A changing-step solver makes shorter steps where the states change quickly.
+It can make longer steps where the states change slowly.
+The requested output interval is not necessarily its internal step.
+For example, a result saved every second can contain many smaller internal steps.
+Shaft-cycle analysis still needs output fine enough to resolve the oscillations.
+Accurate internal integration cannot recover cycles from output that was saved too slowly.
+
+\subsection{A solver for fast and slow equations together}
+Some connected equations contain very different response times.
+Such equations can make a simple forward update unstable.
+A backward update has the form
+\begin{equation}
+\mathbf{x}_{k+1}=\mathbf{x}_k+
+h\,\mathbf{f}(\mathbf{x}_{k+1},\mathbf{u}_{k+1},\mathbf{p}).
+\end{equation}
+The unknown next state occurs on both sides.
+The solver must find a value that satisfies the equation.
+Suitable methods include backward differentiation and the Radau method.
+These are names of calculation methods, not additional equipment models.
+Use tested solver libraries rather than a new general-purpose solver.
+
+\section{How models exchange power and heat}
+At each exchange, update job allocations and the electrical connections.
+Calculate computer demand, cooling demand, and conversion losses.
+Calculate generator and battery supply under their operating limits.
+Check Equation~\ref{eq:site-balance}.
+Then advance temperatures, controls, and damage calculations.
+
+Some inputs depend on outputs from the same interval.
+For example, battery current affects voltage, and voltage affects current at fixed power.
+Solve those relationships together, or repeat the exchange until changes become acceptably small.
+Check the final energy balance.
+Reducing internal steps alone does not remove an error from a slow exchange interval.
+
+\section{Do not average away damage}
+For an interval with variable current,
+\begin{equation}
+\langle I^2\rangle\ne\langle I\rangle^2.
+\label{eq:mean-square}
+\end{equation}
+Angle brackets mean the average over that interval.
+Calculate heating from sufficiently resolved current, or preserve the required average of squared current.
+Keep relevant harmonic losses separately.
+Likewise, a temperature-dependent aging rate at the average temperature can give the wrong accumulated aging.
+Accumulate the rate from the resolved temperature history.
+Battery charge and discharge can cancel in net energy while both contribute to use.
+Keep charge movement, temperature history, and cycle information.
+
+\section{Computing cost is not an equipment response time}
+A model with a short physical response can have an inexpensive reduced form.
+A model with slow physical aging can still be expensive if it contains many spatial states.
+Measure wall-clock time and peak memory for each selected model.
+Wall-clock time is the elapsed time on the laptop.
+
+For study duration $T_{\mathrm{study}}$ and fixed step $h$, the step count is approximately
+\begin{equation}
+N_{\mathrm{step}}\approx T_{\mathrm{study}}/h.
+\end{equation}
+Thirty days contain 2,592,000 seconds.
+A one-millisecond step gives about 2.592 billion steps.
+A one-minute step gives 43,200 intervals.
+This comparison is not permission to use one minute for every model.
+Select the step from accuracy checks and the decision that the study must support.
+
+\section{Detailed events and long histories}
+First, validate reduced models on separate short events.
+Then use them for complete daily histories.
+Run a detailed check when an event leaves the validated input range.
+Include enough preceding and following time to capture the response.
+Initialize the event from the actual preceding states.
+Merge event windows when the responses overlap.
+Do not assume zero background shaft damage between selected events.
+
+For example, one day at a two-millisecond step contains 43.2 million steps.
+Ten one-minute event windows contain 300,000 steps at that resolution.
+The remaining history still needs reduced calculations.
+The detailed step count falls by a factor of 144.
+Total runtime will not necessarily fall by that factor.
+
+\section{A required step-size check}
+Run a demanding reference case with the selected step.
+Repeat it with a smaller step and tighter solver error limits.
+Compare peak temperatures, minimum voltage, frequency limits, and accumulated damage.
+Also compare the selected operating plan.
+State the allowed error before the test.
+Treat very close policy results as ties.
+An acceptable average error must not hide an incorrectly approved operating plan.
+
+\chapter{Software Design and Information Flow}
+\label{chap:software}
+\proposed. This chapter describes a future software design.
+It does not state that the described modules or interfaces already exist.
+The design must support a laptop before it supports a large computer system.
+
+\section{Design goals and necessary names}
+Separate equipment equations from data reading, scheduling, and parallel execution.
+The same equipment model must work in a small verification test and in a large study.
+Do not put equipment equations inside plotting scripts or message-handling code.
+
+Several software names are necessary in this chapter.
+The table defines each name before its detailed use.
+\begin{longtable}{L{0.19\textwidth}L{0.69\textwidth}}
+\toprule Name & Meaning in this design \\ \midrule\endhead
+Module & One part of the software with one stated responsibility. It can be one source file or a small group of files. \\
+Interface & A defined set of inputs, outputs, and permitted operations between software parts. \\
+Adapter & A small software part that translates the twin's interface into a library's interface. It must not silently change the physical meaning of a value. \\
+Coordinator & The part that advances the common study clock, selects events, and calls the required calculations. \\
+Worker & A separate running process that completes an assigned calculation. Each worker has its own working memory. \\
+State snapshot & A saved copy of the conditions needed to continue a calculation. A temperature alone is not a complete snapshot if controls and unfinished cycles also matter. \\
+Case & One complete study specification. It identifies the equipment, operating history, starting state, policy, parameters, and software versions. \\
+Policy & A rule for selecting job admissions, placements, or energy dispatch. \\
+Study manifest & A file that lists the cases and the evidence needed to reproduce them. \\
+Parallel execution & Running independent work at the same time on several processor cores or computers. \\
+MPI & Message Passing Interface. It is a standard for communication between separate processes. The Python library \texttt{mpi4py} provides access to MPI. \\
+Rank & A process number inside an MPI process group. A rank is not an asset identity. \\
+\bottomrule
+\end{longtable}
+
+\section{Overall design}
+Use the following layers.
+An upper layer can request a result from a lower layer through a defined interface.
+Do not let every module read and change every other module's private state.
+
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Layer & Responsibility & Important boundary \\ \midrule\endhead
+Data and evidence & Read approved measurements, equipment records, workload records, and parameter sources. Check identity, units, clocks, and quality. & Original records remain unchanged. Measured values remain distinct from calculated values. \\
+Equipment and connections & Describe the assets, meters, electrical branches, cooling paths, and available compute groups. & A compute allocation must map to its actual electrical supply. A supply-path change must be recorded as an event. \\
+Physical models & Calculate network conditions, controls, temperatures, and selected damage. & Each changing physical state has one owner. Existing external models are accessed through adapters. \\
+Time and event coordination & Advance states, exchange inputs, handle operating changes, check balances, and save restart data. & One model's internal step does not set every other model's step. \\
+Planning and decisions & Generate feasible job assignments and energy plans. Compare their operating limits, costs, and aging consequences. & A trial plan must not change the accepted equipment state. \\
+Execution and storage & Assign complete tasks to local or remote workers. Save results, errors, versions, and timing. & Execution method must not change the physical specification of a case. \\
+Reports and approvals & Present operating limits, separate damage measures, uncertainty, and evidence. Pass approved actions through existing site systems only. & Research results do not bypass equipment protection or operator permission. \\
+\bottomrule
+\end{longtable}
+
+The first version should run offline from files.
+The next version can receive live measurements through an approved read-only connection.
+Operational advice requires the validation gates in Chapter~\ref{chap:validation}.
+An automatic control connection is a separate deployment task.
+
+\section{Proposed code organization}
+Add a separate package only when implementation is authorized.
+The proposed package name below is \sourcefile{datacenter_twin/}.
+Keep the existing turbine packages usable on their own.
+Do not require MPI, a battery library, or a converter library for a user who only needs the present turbine models.
+
+\begin{longtable}{L{0.28\textwidth}L{0.60\textwidth}}
+\toprule Proposed location & Responsibility \\ \midrule\endhead
+\sourcefile{datacenter_twin/contracts.py} & Define shared input, state, output, limit, and error records. Include unit and time definitions. \\
+\sourcefile{datacenter_twin/data/} & Read supported records. Align clocks, flag missing data, and map measurements to assets. Do not contain life equations. \\
+\sourcefile{datacenter_twin/site.py} & Hold the asset register, electrical and cooling connections, meter boundaries, and equipment capabilities. \\
+\sourcefile{datacenter_twin/models/transformer.py} & Own transformer temperature, paper exposure, and separately supported oil-condition states. \\
+\sourcefile{datacenter_twin/models/turbine.py} & Adapt the existing turbine routines. Select a detailed or checked reduced model. Preserve control and shaft states where restart is supported. \\
+\sourcefile{datacenter_twin/models/battery.py} & Own the selected cell or pack electrical, thermal, charge, and health states. Keep the chemistry and parameter source explicit. \\
+\sourcefile{datacenter_twin/models/converter.py} & Own converter losses, thermal states, repeated-temperature information, and supported capacitor or switch damage. \\
+\sourcefile{datacenter_twin/network.py} & Adapt the selected electrical-network calculation. Define where voltage, frequency, branch flows, and network losses are calculated. \\
+\sourcefile{datacenter_twin/coupling.py} & Solve input-output relationships that connect models. Check convergence, power balance, and exchange errors. \\
+\sourcefile{datacenter_twin/engine.py} & Advance the common clock, process events, request snapshots, and select detailed-event checks. \\
+\sourcefile{datacenter_twin/policies.py} & Implement simple comparison rules. Keep these rules separate from equipment models. \\
+\sourcefile{datacenter_twin/planning.py} & Build feasible job-to-resource choices and the selected optimization problem. Evaluate candidate plans through the engine. \\
+\sourcefile{datacenter_twin/metrics.py} & Calculate completed work, delays, energy, limit violations, and separate asset-aging measures. \\
+\sourcefile{datacenter_twin/execution.py} & Provide serial, local-process, and optional MPI execution behind the same case interface. \\
+\sourcefile{datacenter_twin/results.py} & Save case summaries, selected histories, state snapshots, parameter sources, and failure records. \\
+\sourcefile{tools/twin/} & Provide small command-line entry points for running a study, timing models, and producing reports. These entry points call package functions. \\
+\sourcefile{tests/} & Add focused tests next to the existing test suite. Include interfaces, balances, restarts, time exchange, policy comparisons, and serial-versus-parallel results. \\
+\bottomrule
+\end{longtable}
+
+These are responsibility boundaries, not a requirement to create all files at once.
+Begin with the records, one asset adapter, and a serial engine.
+Split a module further only when the implementation needs it.
+The present package-discovery rules in \sourcefile{pyproject.toml} include the turbine packages.
+A future implementation must explicitly include the new package and its required data files.
+This report does not change those rules.
+
+\section{Shared records and units}
+Use checked data records rather than unrelated dictionaries passed through the whole system.
+Python data classes can provide lightweight records.
+A library such as Pydantic can check external configuration values at the input boundary.
+Neither choice removes the need for physical checks.
+
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Record & Required contents & Required rule \\ \midrule\endhead
+Case specification & Case identity, workload identity, asset configuration, parameter set, policy, initial state, study end, and required outputs. & The specification must be sufficient to repeat the case. Do not depend on the worker number or execution order. \\
+Measurement & Asset identity, channel name, value, unit, physical recording time, quality, source, and relevant averaging or filtering information. & Do not replace a missing observation with a calculated value without marking the change. \\
+Model parameters & Values, units, valid operating range, source, fitting record, uncertainty, and model version. & Keep fitted values separate from library defaults and engineering assumptions. \\
+Model input & Start and end time, power or current requests, temperatures, operating modes, boundary conditions, and how each input varies within the interval. & State whether an input is held fixed, varies linearly, or changes at a known event. \\
+State snapshot & Physical states, control states, running jobs, stored charge, health states, unfinished cycles, model time, versions, and necessary random-generator state. & Restore the complete supported state. A visible output table is not necessarily sufficient to restart a solver. \\
+Model output & Endpoint states, interval energy or charge, relevant peaks, losses, damage increments, limit flags, and data-quality or validity flags. & Keep endpoint values, interval averages, maxima, and accumulated values distinct. \\
+Candidate plan & Proposed job allocations and start times, power caps, turbine requests, battery requests, horizon, and source snapshot identity. & Evaluate all alternatives from the same accepted starting state and common future assumptions. \\
+Case result & Completion status, operating and aging measures, constraint violations, numerical failures, runtime, memory, and selected artifact locations. & Never encode a failed run as zero damage or an apparently inexpensive feasible plan. \\
+\bottomrule
+\end{longtable}
+
+Use watts, volts, amperes, seconds, and explicitly defined temperature units internally.
+Convert to megawatts, hours, and other presentation units only at stated boundaries.
+Use one elapsed simulation time origin for a case.
+Retain the original calendar times in the measurement record.
+Define time precision and event-order rules so that simultaneous events are handled consistently.
+Do not compare floating-point time values for exact equality without a defined time rule.
+
+\section{The asset-model interface}
+Each adapter must expose the following operations or documented equivalents.
+The names are proposed interface names, not claims about the present libraries.
+
+\begin{longtable}{L{0.20\textwidth}L{0.32\textwidth}L{0.36\textwidth}}
+\toprule Operation & Inputs and outputs & Required behavior \\ \midrule\endhead
+\texttt{initialize} & Asset description, parameter set, measurements, starting time, and starting state. Returns a model instance and input-quality findings. & Validate units, ranges, and model capability. State any warm-up calculation or uncertain initial state. \\
+\texttt{advance} & A target time, interval inputs, and numerical settings. Returns the reached time, outputs, and status. & Use appropriate internal steps. Stop or report failure at unsupported conditions. Do not silently skip an event. \\
+\texttt{limits} & Current state, requested operating conditions, and applicable limits. Returns margins and flags. & Distinguish a physical limit from an approximation's validity range and a solver failure. \\
+\texttt{snapshot} & Current model instance. Returns all supported continuation data. & Preserve damage history, control state, filters, and unfinished cycles as well as temperatures. \\
+\texttt{restore} & A checked snapshot and compatible model configuration. Returns a restored instance or an explicit error. & Reject incompatible state versions. Verify continuation against an uninterrupted run. \\
+\texttt{summary} & Completed interval or case. Returns selected measures and their units. & Keep asset-specific aging definitions. Do not invent a common percentage of total site life. \\
+\bottomrule
+\end{longtable}
+
+A library can expose only a complete-history calculation.
+In that case, retain it as an offline reference model until a continuation interface is checked.
+Do not simulate continuation by repeatedly initializing a cold or settled model for each short interval.
+An internal solver state can be unavailable even when physical output values are available.
+Document that restriction.
+
+\section{Individual model responsibilities}
+\begin{longtable}{L{0.17\textwidth}L{0.36\textwidth}L{0.35\textwidth}}
+\toprule Component & Receives & Owns and returns \\ \midrule\endhead
+Transformer & Its branch currents, voltage information needed for losses, harmonic-loss inputs, local air or coolant conditions, and cooling availability. & Winding and oil states, cooling mode where modeled, losses, temperature limits, paper-aging exposure, and separately checked oil indicators. \\
+Turbine & Power request, electrical loading or generator interface values, ambient and fuel conditions, and approved control settings. & The selected control and mechanical states, shaft response, fuel use, frequency contribution where owned, and separate shaft or hot-part exposure. \\
+Battery & Terminal power or current request, connection counts, converter interface, coolant conditions, initial charge, and health. & Cell or equivalent-pack voltage, current, charge, temperature, capacity, resistance, energy limits, and separate aging increments. \\
+Converter & Electrical operating point, voltage, current, switching settings where required, coolant conditions, and device maps. & Conversion losses, relevant temperature states and cycles, switch or capacitor condition, and operating limits. \\
+Network & Asset connections, supplies, demands, branch properties, and the selected electrical-model assumptions. & Branch flows, voltages, network losses, and any frequency or generator states assigned to this model. \\
+Cooling & Equipment heat loads, air or water conditions, cooling commands, and availability. & Heat removal, return temperatures, cooling power, and supported cooling limits. A simple prescribed boundary is permitted in the first study. \\
+\bottomrule
+\end{longtable}
+
+Assign one owner to each generator speed, governor state, and voltage-control state.
+For example, if ANDES advances a generator and governor, another adapter must not independently advance a second copy of the same states.
+Select and document the mechanical-to-electrical interface before connecting a shaft model.
+Likewise, do not include converter losses in both the battery model and a separate converter without an explicit boundary correction.
+
+\section{Information flow through one exchange interval}
+Use the following sequence as a design outline.
+Some connected equations must be solved together rather than once in this order.
+\begin{enumerate}
+\item Read or select the measurements and known events for the interval. Check their time and asset identity.
+\item Obtain the accepted equipment state. Include the load and thermal history needed for continuation.
+\item Request job admissions, placements, and energy requests from the current policy or candidate plan.
+\item Translate running work into node, rack, cooling, and auxiliary demand. Use the checked supply paths.
+\item Solve the electrical and conversion relationships. Respect battery, turbine, converter, and network limits.
+\item Advance the required controls and physical states to the next exchange or event time. Use each model's internal step.
+\item Accumulate losses, energy, temperature exposure, and supported damage from the resolved interval. Preserve unclosed cycles.
+\item Check balances, limits, numerical errors, and model validity. Store a result and the continuation state.
+\end{enumerate}
+
+For a job event, load change, cooling change, or protection event, end the interval at the event time.
+Use the earliest required event or routine exchange as the next target time.
+Do not wait for a long reporting interval to apply a known change.
+
+Battery current depends on terminal voltage at fixed requested power.
+Converter losses depend on current and temperature.
+Temperature and voltage also depend on the resulting current.
+Repeat the connected calculation until the stated error limits are met, or solve the equations together.
+If the calculation fails to converge, shorten the interval or report failure under an explicit rule.
+Do not report an unbalanced exchange as a valid low-cost plan.
+
+Exchange values only at rates required by the coupled physics.
+A smaller internal integration step does not require a separate message for every step.
+However, holding a fast-changing boundary fixed too long can give a wrong answer.
+Check the exchange interval separately from the internal integration step.
+
+\section{Information flow for planning and field use}
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Sender and receiver & Information transferred & Required protection against a wrong result \\ \midrule\endhead
+Data reader to state estimator & Approved measurements, clocks, equipment identity, and quality flags. & Missing or delayed data must remain visible. The state estimator updates the best available present condition; it does not know the future. \\
+State estimator to coordinator & Accepted present states, uncertainty, and the measured history needed to continue. & Record which values were measured, fitted, or assumed. Do not reset cumulative damage without a supported maintenance action. \\
+Site model to planner & Resource availability, physical supply paths, ratings, and permitted actions. & Distinguish where a job can run from which transformer or converter supplies that location. \\
+Planner to candidate worker & A starting-state snapshot and a proposed future job and energy plan. & Give each candidate its own state. Do not let one trial alter the starting point of the next trial. \\
+Model worker to planner & Predicted service, electrical and temperature limits, separate aging measures, numerical status, and uncertainty. & An incomplete or invalid candidate cannot be treated as an acceptable operating plan. \\
+Planner to approval gate & The selected plan, supporting comparisons, validity range, and required reserve margins. & Enforce approved limits and the decision-time budget. Keep an approved fallback for missing or failed calculations. \\
+Approval gate to site systems & Only the permitted job-scheduler or energy-management requests. & Existing equipment controls and protection remain active. Operational access needs a separate security and safety review. \\
+Coordinator to evidence store & Accepted states, trial summaries, selected detailed outputs, errors, versions, and timestamps. & Keep trial predictions distinct from actual operation and from field measurements. \\
+\bottomrule
+\end{longtable}
+
+For historical research, the accepted state belongs to the simulated case.
+For a live twin, measurements update the accepted state.
+A candidate's predicted future is not the measured state of the facility.
+Commit only the chosen simulated trajectory in a closed-loop simulation.
+In field use, reconcile the next state with new measurements.
+
+\section{Job graphs and energy decisions}
+Keep two different graph descriptions.
+A graph is a set of items and connections between items.
+The job graph connects jobs to feasible compute allocations.
+This is a bipartite graph because each connection joins one of two different item groups.
+The physical graph connects buses, transformers, converters, cooling equipment, and compute loads.
+It need not be bipartite.
+
+A job-to-resource edge does not by itself define a complete schedule.
+The planning model must also represent start times, duration, overlapping use, memory, and network needs.
+A job that requires several GPUs together must receive them together unless its execution method explicitly permits another arrangement.
+Changing a power cap can change runtime and completion time.
+The workload model must represent that change before the plan is compared.
+
+Use a simple matching or flow calculation only for the cases that meet its assumptions.
+Use OR-Tools or a mixed-integer model when discrete starts, resource groups, and shared constraints require it.
+Pyomo can describe the latter problem, and HiGHS can solve supported linear and mixed-integer forms.
+HiGHS is not a general solver for arbitrary nonlinear equipment equations.
+Use checked approximations or evaluate detailed candidate plans outside that optimization problem.
+
+Keep service, reserve, voltage, temperature, and equipment constraints explicit.
+Keep unlike aging outputs separate unless justified weights convert them into a stated common objective.
+The optimizer must not spend battery reserve or omit recharge to create an artificial benefit.
+Account for important consequences after the immediate planning horizon through checked end-state conditions or a longer evaluation.
+
+\section{Time scales and where each calculation runs}
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Calculation & Routine location and resolution & Detailed or expensive work \\ \midrule\endhead
+Workload events & The case coordinator applies exact known event times and uses a checked aggregate power model between events. & Separate performance experiments establish power and runtime relationships for hardware and job types. \\
+Transformer heat and aging & A few temperature states advance with checked seconds-to-minutes steps. Aging follows the resolved temperature history. & Optional spatial or harmonic studies establish parameters and check difficult cases. They need not run for every candidate. \\
+Turbine and shaft & A checked reduced response runs with the case. It retains relevant starting load and recent-event information. & Detailed shaft integration resolves selected oscillations with finer internal steps. Run it for reference cases and unsupported events. \\
+Battery & A reduced electrical, charge, and thermal model advances at the resolution needed for current, limits, and heat. Health updates use retained exposure. & Detailed PyBaMM calculations establish or check behavior for selected chemistry and operating conditions. Do not solve a detailed chemical model for every cell in every candidate. \\
+Converter & Loss maps and reduced thermal states support ordinary histories. Retain relevant repeated-temperature effects. & Switching and device studies establish maps and check fast cycles. Use short event histories, not continuous switching simulation over months. \\
+Planning & Generate or revise plans at the required decision times, not at every physical integration step. & Detailed candidate checks run only within the available decision budget or offline. A late calculation cannot approve an already executed action. \\
+Uncertainty and calibration & Independent parameter and operating-history cases can run on separate workers. & Repeat expensive reference cases where sensitivity shows that their uncertainty can change the decision. \\
+\bottomrule
+\end{longtable}
+
+Measure each adapter's wall-clock time, peak memory, and accuracy before selecting the long-study configuration.
+A physically slow model is not automatically cheap.
+A physically fast model can be cheap after a checked reduction.
+Do not choose an execution layout from response times alone.
+
+\section{Where MPI should be used first}
+The first MPI boundary should enclose a complete independent case.
+Each worker runs that case's connected equipment models and time coordinator locally.
+Workers do not exchange every shaft or converter integration step.
+
+\begin{longtable}{L{0.20\textwidth}L{0.32\textwidth}L{0.36\textwidth}}
+\toprule Work group & Suitability for MPI & Conditions and limits \\ \midrule\endhead
+Independent workload histories & High when each case takes enough time to exceed process and message overhead. & Give each case a supported initial state. Separate days of one dependent history are not automatically independent cases. \\
+Parameter and uncertainty cases & High. Each parameter set can have its own complete model run. & Use stable case identities and record the parameter draws. Keep related policy comparisons paired on the same assumed conditions. \\
+Candidate future plans & Useful when evaluations are expensive and independent after a common snapshot. & Each worker needs a private copy of the same starting state. Limit the task count to the planning deadline and available memory. \\
+Detailed validation events & Useful for separate events whose starting states are already available. & Include the required preceding and following response. Merge interacting event windows or preserve their sequential dependency. \\
+Calibration trials & Useful for independent trial parameter sets or independent reference comparisons. & The fitting procedure can still have sequential steps. Do not use final evaluation records to choose parameters. \\
+Separate physical zones in one case & Conditional and usually a later step. & Shared buses, cooling, batteries, and controls require time coordination and repeated exchanges. Profile the coupled calculation first. \\
+Four asset types in one small case & Usually a poor first split. & Four processes can spend more time waiting and exchanging values than solving the equations. Unequal model cost also leaves workers idle. \\
+Consecutive time intervals & Not independent for a stateful asset. & A later interval needs the earlier temperatures, charge, controls, and cycles. Do not distribute arbitrary time slices as unrelated work. \\
+\bottomrule
+\end{longtable}
+
+For example, four policies and several complete operating histories create many independent case tasks.
+The policy changes the trajectory, so each task must run its own complete history.
+Do not copy one policy's future temperatures into another policy's run.
+
+If only one cheap case is needed, use one process.
+MPI is optional infrastructure, not evidence of a more accurate twin.
+Use local processes for laptop experiments unless a measured benefit or deployment requirement justifies MPI.
+
+\section{MPI driver and worker responsibilities}
+The following outline describes one possible case-level implementation.
+It is not executable code.
+\begin{enumerate}
+\item The driver reads and checks the study manifest. It assigns stable identities to all cases.
+\item It makes immutable shared inputs available. It sends small configuration and task records to workers.
+\item Each worker loads its required input data and constructs private model instances.
+\item A worker initializes a case and runs its coordinator until completion or a defined failure.
+\item The worker writes its own large result files and returns a small summary, status, and file locations.
+\item The driver records every case status and combines the small results in stable case order.
+\item Failed or unfinished cases remain visible. A later restart can select them without changing completed case identities.
+\end{enumerate}
+
+The \texttt{mpi4py} operations \texttt{bcast}, \texttt{scatter}, and \texttt{gather} can support a simple fixed task assignment.
+They distribute shared information, distribute tasks, and collect results.
+Every participating process must call the matching group operations in a compatible order.
+An idle worker must still follow the required group-operation sequence.
+
+For uneven case durations, use a checked work queue or \texttt{mpi4py.futures} where the launch environment supports it.
+A work queue gives the next available case to a free worker.
+Batch very short calculations into one task so that communication does not dominate.
+Do not rely on dynamic process creation without checking that the selected MPI installation and cluster permit it.
+
+Ordinary Python exceptions can be returned as explicit failed-case records.
+A worker process crash or broken MPI communication can stop the whole process group.
+Do not assume that a driver can always recover from a lost rank through an ordinary gather.
+Use launcher time limits, persistent case records, and an explicit job-stop procedure.
+Recover unfinished cases in a later launch if the current MPI job cannot continue safely.
+
+\section{Avoid too many workers and threads}
+Some numerical libraries use several processor threads inside one process.
+Running many worker processes can then create many more active threads than the machine can support efficiently.
+This condition can make a parallel run slower and use excessive memory.
+
+For an initial CPU allocation, check
+\begin{equation}
+N_{\mathrm{worker}}N_{\mathrm{thread}}
+\leq N_{\mathrm{allocated\ core}}.
+\label{eq:worker-budget}
+\end{equation}
+Here, $N_{\mathrm{worker}}$ is the number of active worker processes.
+The quantity $N_{\mathrm{thread}}$ is the allowed numerical-library thread count per worker.
+The right side is the number of processor cores allocated to the study.
+This is a resource-planning rule, not a guaranteed fastest configuration.
+
+Start case-level parallel runs with one numerical thread per worker.
+Where applicable, set the numerical-library thread controls before starting workers.
+Examples are \texttt{OMP\_NUM\_THREADS}, \texttt{OPENBLAS\_NUM\_THREADS}, and \texttt{MKL\_NUM\_THREADS}.
+Also account for threads created by optimization solvers.
+Do not nest MPI workers, a local process pool, Ray workers, and multithreaded solvers without one explicit total resource budget.
+
+Memory sets another limit:
+\begin{equation}
+N_{\mathrm{worker}}M_{\mathrm{case}}+M_{\mathrm{shared}}+M_{\mathrm{driver}}
+< M_{\mathrm{available}}.
+\label{eq:memory-budget}
+\end{equation}
+The symbols $M$ denote measured or reserved memory amounts in the same unit.
+Allow space for the operating system, library overhead, and peak temporary arrays.
+Do not size the worker count from average memory alone.
+
+\section{When distributed coupled models become justified}
+Consider splitting one physical case only after timing shows a large expensive region that can benefit.
+Examples include many electrical zones or expensive independent device calculations connected through a slower shared boundary.
+The separated models still need a consistent clock and defined exchange rules.
+
+HELICS can coordinate different simulators and their time exchanges.
+FMPy can execute models packaged with the Functional Mock-up Interface, or FMI.
+FMI defines a model-exchange or model-execution interface.
+A packaged model is commonly called an FMU.
+An FMU is not automatically a complete distributed twin or a guaranteed portable binary.
+Check its supported operating system, processor type, solver mode, and continuation features.
+
+Use one clearly defined owner of model-exchange time.
+Do not independently let an MPI driver and a separate simulation framework advance the same physical states.
+A later deployment can run independent case groups with MPI while each group uses HELICS internally.
+That hierarchy needs separate tests and a process budget.
+It is unnecessary for the first laptop study.
+
+Strongly connected fast equations may be better solved together in one process.
+Network delay and repeated exchanges can remove the benefit of distributing them.
+If a model lacks the required rollback or state restore operation, do not assume that a trial exchange can be undone.
+
+\section{Runtime estimates and decision deadlines}
+For case-level parallel execution, a planning estimate is
+\begin{equation}
+T_{\mathrm{elapsed}}\approx T_{\mathrm{setup}}+
+\max_r\left(\sum_{c\in\mathcal{C}_r}T_c\right)
++T_{\mathrm{message}}+T_{\mathrm{storage}}.
+\label{eq:parallel-runtime}
+\end{equation}
+All $T$ quantities are elapsed seconds.
+The index $r$ identifies a worker, and $\mathcal{C}_r$ is its assigned case set.
+The quantity $T_c$ is the measured or estimated runtime of case $c$.
+The maximum matters because the last busy worker can determine completion time.
+Setup, messages, and storage can overlap in a real implementation.
+Equation~\ref{eq:parallel-runtime} is a budgeting estimate, not an exact performance law.
+
+Measure startup and compilation cost separately from repeated model execution.
+An FMU load, generated-code build, or large data read can dominate a short case.
+Reuse safe immutable inputs, but create a fresh mutable state for each case.
+Time both first-run and repeated-run behavior.
+
+Offline studies can wait for a detailed result.
+Online planning must meet a declared deadline.
+If the deadline expires, mark unfinished candidates and use an approved feasible fallback.
+Do not reduce numerical accuracy below its checked range simply to finish on time.
+Do not present a partially evaluated search as proof of a global optimum.
+
+\section{Storage and reproducible results}
+Store one summary row per case and selected time histories per asset.
+Parquet can hold typed time-series tables.
+JSON or TOML can hold small configuration and manifest records.
+Choose one documented schema and record its version.
+Keep original units and source metadata even if the solver uses converted values.
+
+Give each worker a separate output directory or unique case files.
+Do not let several workers append to the same ordinary CSV, Parquet, or log file.
+Parallel HDF5 requires a compatible build and a coordinated access design; it is not an automatic property of an HDF5 file.
+Begin with independent case files and a single driver-written manifest.
+Mark a result complete only after all required files are successfully closed.
+
+Save compact summaries and restart states for every case.
+Save full fast waveforms only for selected validation or failed events unless the study needs them all.
+Retain enough information to reproduce peak and cycle calculations.
+Do not replace an unresolved cycle history with an unsupported average.
+
+Use stable case-based random seeds.
+Changing worker count or task completion order must not change the workload or parameter draw for the same case.
+Related policy comparisons should use the same assumed workload and parameter realization.
+Floating-point sums can change slightly with parallel execution order.
+Compare results within declared numerical tolerances rather than promise identical binary files in all environments.
+
+\section{Code requirements and acceptance checks}
+\begin{longtable}{L{0.12\textwidth}L{0.40\textwidth}L{0.36\textwidth}}
+\toprule ID & Required behavior & Acceptance check \\ \midrule\endhead
+SW-01 & Model equations, data reading, planning, and execution remain separate. & Run a model test without importing MPI or the planning layer. \\
+SW-02 & All exchanged quantities have defined units, identities, and time meanings. & Reject wrong units, unsupported intervals, unknown assets, and missing required fields. \\
+SW-03 & Each physical or control state has one owner. & Check generator, governor, cooling, and converter ownership in each configured case. \\
+SW-04 & Candidate evaluations use independent state copies. & Change candidate order and verify unchanged per-candidate results. Confirm that rejected trials do not alter accepted states. \\
+SW-05 & Restart preserves all supported continuing state. & Compare an uninterrupted run with a split run, including temperatures, charge, controls, damage, and unfinished cycles. \\
+SW-06 & Internal steps, exchange times, and output rates are independently configurable. & Refine each choice separately and compare limit decisions and exposure. \\
+SW-07 & Balances and operating limits are checked at defined boundaries. & Run known balance and limit cases. Reject unexplained power or energy discrepancies. \\
+SW-08 & Model validity and numerical failure are explicit result fields. & Inject an out-of-range input and a solver failure. Neither may become zero damage or a feasible low-cost result. \\
+SW-09 & Serial and parallel methods use the same case specification. & Run a small manifest with different worker counts and compare results within stated tolerances. \\
+SW-10 & Worker errors and incomplete tasks remain visible. & Test a failed case, an empty task allocation, and restart from completed-case records. Check launcher-stop behavior separately. \\
+SW-11 & Memory, process count, and numerical threads obey a declared budget. & Measure peak memory and elapsed time with one worker, then with a small larger count. Stop scaling when the benefit disappears. \\
+SW-12 & Results include model versions, parameter sources, and input identities. & Reproduce a selected case from the saved manifest without relying on hidden notebook state. \\
+SW-13 & Field access starts read-only and credentials do not enter result files. & Review access permissions, logging, and permitted output fields before connection to the site. \\
+SW-14 & Library dependencies and binary models are reproducible. & Pin a tested environment, record FMU checksums, and test the target processor and operating system. Do not fetch unreviewed code during a production calculation. \\
+SW-15 & Core operation does not require every optional library. & Run the serial reduced study with the declared core environment. Test optional adapters in their own supported environments. \\
+SW-16 & Decision deadlines have an approved fallback. & Force a timeout. Verify that no incomplete or late result becomes an operating command. \\
+SW-17 & Work completion and reserve conditions are comparable. & Compare policies with the same requested work and approved final reserve, including recharge and relevant end-state effects. \\
+SW-18 & Reported life claims match the available evidence. & Keep operating-response checks, damage checks, and field life validation as separate status fields. \\
+\bottomrule
+\end{longtable}
+
+Use ordinary unit tests for small equations and records.
+Use integration tests for connected models and event handling.
+Use the independent field and reference comparisons in Chapter~\ref{chap:validation} for supported engineering claims.
+Tests that pass without measurements do not establish real remaining life.
+
+\section{Open-source software by design role}
+\begin{longtable}{L{0.23\textwidth}L{0.32\textwidth}L{0.33\textwidth}}
+\toprule Software & Proposed role & Limit or integration check \\ \midrule\endhead
+\textbf{NumPy and SciPy} & Numerical arrays, tested equation solvers, fitting, and reduced models. & Select stable methods and check steps, tolerances, and units. These libraries do not supply asset-specific life data. \\
+\textbf{ExaDigiT/RAPS} & Workload replay, resource allocation experiments, power estimates, and supported cooling interfaces. & Pin the selected version and calibrate the local hardware and workload mapping. \\
+\textbf{pandapower} & Electrical-network and time-series power-flow calculations. & Check supported equipment and assumptions. It does not by itself validate fast switching, shaft stress, or transformer remaining life. \\
+\textbf{ANDES} & Supported generator, control, and electrical dynamic studies through the existing project integration. & Assign state ownership carefully. It is not a switching-waveform simulator. \\
+\textbf{OpenModelica and ThermoPower} & Selected physical models, control studies, and supported FMI export. & Check each selected model's actual compiler compatibility and license. A library name does not establish a validated component-life model. \\
+\textbf{PyBaMM} & Detailed battery electrical, thermal, and degradation reference studies. & Use chemistry-specific parameters. Check state continuation, version, and computational cost. \\
+\textbf{BLAST-Lite} & Selected empirical battery-aging calculations for long histories. & Match chemistry and test range. Check supported outputs. Do not add the same aging mechanism twice. \\
+\textbf{pyLife} & Supported repeated-load counting and material-fatigue calculations. & Supply valid local stress and material evidence. A counted cycle is not a measured remaining life. \\
+\textbf{NetworkX} & Small graph construction, feasibility checks, and baseline matching studies. & Python graph overhead can matter at large scale. Use solver-ready sparse structures when profiling justifies them. \\
+\textbf{OR-Tools} & Supported matching, flow, and discrete scheduling formulations. & Check whether the job and time constraints fit the selected solver's model. \\
+\textbf{Pyomo and HiGHS} & A modeling layer and an open-source solver for supported linear or mixed-integer approximations. & Do not place unrestricted nonlinear physical equations into a solver that cannot handle them. \\
+\textbf{FMPy} & FMI model inspection and execution through a Python adapter. & Check binary platform, state support, exchange mode, and per-case instance isolation. \\
+\textbf{HELICS} & Optional coordination of separately running simulators when scale justifies it. & Test time grants and exchange accuracy. It does not remove the need to solve coupled physical relationships correctly. \\
+\textbf{mpi4py and an MPI implementation} & Optional case-level distribution on one machine or a cluster. & Match the Python extension, MPI installation, and launcher. Test process failures and resource limits. \\
+\textbf{concurrent.futures} & A standard Python option for initial local worker processes. & Start with a serial baseline. Pass small task descriptions, not live solver objects. \\
+\textbf{PyArrow and pytest} & Typed result tables and repeatable software tests. & Record data schemas and test outputs. They do not replace field validation. \\
+\bottomrule
+\end{longtable}
+
+Review licenses, maintenance, numerical capability, and tested versions before adopting a library.
+Source code that is visible online is not necessarily unrestricted open-source software.
+In particular, PyPowerSim's published non-commercial terms need a separate use review.
+The current ExaDigiT AutoCSM creation workflow documents Dymola use.
+Do not present that workflow as a verified fully open-source compiler path without checking an alternative.
+
+Keep optional adapters in separate environments if numerical-library requirements conflict.
+A file or process interface can connect those environments.
+Document any additional data conversion and execution cost.
+Do not force an incompatible set of dependencies into one environment merely to keep one installation command.
+
+\section{A staged implementation plan}
+\begin{longtable}{L{0.16\textwidth}L{0.37\textwidth}L{0.35\textwidth}}
+\toprule Stage & Work and deliverable & Gate before the next stage \\ \midrule\endhead
+1: Serial core & Define records, asset identity, time rules, one turbine adapter, and one complete reproducible case. & Small verification tests, balance checks, and measured runtime. No MPI requirement. \\
+2: Connected reduced models & Add transformer, realistic battery, converter losses and heat, and explicit state ownership. & Each adapter passes its tests. Connected step and exchange refinement checks pass. \\
+3: Policy comparison & Add fixed policies, private candidate snapshots, separate aging measures, and the laptop validation study. & Completed-work and reserve checks pass. Reduced results preserve important decisions against reference cases. \\
+4: Local case workers & Distribute independent cases over a small local process pool. & Serial-equivalent results, measured speed benefit, bounded memory, and correct failure records. \\
+5: Optional MPI & Reuse the same case interface under an MPI launcher for larger studies. & Worker-count tests, compatible installations, safe result writing, and restart tests. \\
+6: Optional distributed physics & Split a costly physical case only if profiling supports it. Add a checked coordination method such as HELICS where suitable. & Exchange convergence, consistent states, and a measured total benefit over case-level parallelism. \\
+7: Field connection & Add approved read-only data acquisition, then shadow recommendations. Operational action remains a later controlled deployment. & Field V\&V evidence, security review, owner-approved limits, and reliable fallback behavior. \\
+\bottomrule
+\end{longtable}
+
+The first useful large study is many well-defined small cases, not one unnecessarily distributed model.
+This design keeps a laptop entry path while allowing later cluster execution.
+The project must still obtain the asset data and validation evidence described in Chapter~\ref{chap:validation}.
+
+\section{Primary implementation references}
+Use the documentation for the versions actually installed.
+The following primary sources describe the proposed execution and coordination tools:
+\begin{itemize}
+\item MPI for Python tutorial: \url{https://mpi4py.readthedocs.io/en/stable/tutorial.html}.
+\item MPI worker-pool interface: \url{https://mpi4py.readthedocs.io/en/stable/mpi4py.futures.html}.
+\item Python local executor interface: \url{https://docs.python.org/3/library/concurrent.futures.html}.
+\item HELICS time-coordination framework: \url{https://docs.helics.org/en/latest/}.
+\item FMPy model-execution project: \url{https://github.com/CATIA-Systems/FMPy}.
+\end{itemize}
+Check platform support, process-launch rules, and state support before implementation.
+The architecture and software requirements in this chapter remain proposed work.
+
+\chapter{Verification, Validation, and Field Data}
+\label{chap:validation}
+
+\section{What verification and validation mean}
+Verification asks this question: did the software solve the selected equations correctly?
+Validation asks a different question: do those equations describe the selected equipment well enough for the intended decision?
+The short name for these two activities is V\&V.
+
+A comparison between two computer programs can support verification.
+It is not independent evidence that either program predicts actual equipment life.
+A comparison with measured temperature can support a temperature prediction.
+It does not, by itself, validate a prediction of remaining life.
+
+Set the intended use before each test.
+Set the required accuracy before examining its results.
+Keep data used to adjust parameters separate from data used for the final check.
+In the tables below, an acceptance rule states what must be true before a result can be used.
+
+\begin{warningbox}{Field work needs permission}
+Begin with read-only access to approved records.
+Do not change a protection setting to obtain test data.
+Do not request a trip, overload, deep discharge, or unsafe temperature.
+Use normal operating events, existing test records, or an approved test plan.
+Only qualified personnel may install sensors or work near energized equipment.
+\end{warningbox}
+
+\section{The evidence required for each claim}
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Intended claim & Evidence required & What this evidence does not establish \\ \midrule\endhead
+The equation solver works & Exact test cases, unit checks, conservation checks, and smaller-step comparisons. & Correct behavior of a specific real asset. \\
+The operating response is credible & Independent measured current, power, speed, voltage, or temperature during several relevant events. & Correct damage per event or correct retirement time. \\
+The exposure estimate is credible & Checked operating response, complete time histories, and reliable starting conditions. & Correct conversion from exposure to damage. \\
+The damage model is credible & Material or cell tests, measured condition changes, maintenance records, and separate tests not used to fit the model. & Correct life outside the tested operating range. \\
+An operating plan is better & Equivalent completed work, equivalent reserve requirements, checked constraints, and a benefit larger than the combined errors. & A guaranteed saving at every future site condition. \\
+Remaining life can be forecast & A supported initial health estimate, a defined end condition, future-use assumptions, and independent long-term evidence. & A certain failure date or protection against unmodeled failure causes. \\
+\bottomrule
+\end{longtable}
+
+\section{Verification tests that do not need field data}
+These tests can run on a laptop.
+Use small cases before long histories.
+Use independently calculated answers where possible.
+Do not use the same defective equation in both the test and the tested program.
+
+\begin{longtable}{L{0.17\textwidth}L{0.36\textwidth}L{0.35\textwidth}}
+\toprule Part & Verification test & Required result \\ \midrule\endhead
+Units and signs & Convert seconds to hours, watts to energy, and amperes to charge. Test charge and discharge separately. & Correct scale and direction. No hidden factor of 3600, 1000, or one million. \\
+Site power and energy & Apply known supplies, demands, stored-energy changes, and losses at one boundary. & The balance closes within the declared numerical error. Losses are counted once. \\
+Transformer losses & Test rated sinusoidal current. Then add known current components at multiples of the supply frequency. & Recover the selected reference losses. Do not count the same current contribution twice. \\
+Transformer temperatures & Apply constant losses and outside temperature. Then apply one change in load or cooling mode. & Recover the known steady condition and the expected approach to that condition. A warm restart preserves temperature. \\
+Paper aging & Hold the hot-spot temperature at its reference value and at another constant value. & The aging factor is one at the reference value. Accumulated aging equals the constant factor multiplied by time in hours. \\
+Oil condition & Test zero reaction, zero input, and a known oil-treatment change. & Material amounts remain physically possible. Oil replacement does not reset paper age. \\
+Turbine controls & Test a balanced starting state, one load increase, one load reduction, and active control limits. & Correct speed-response direction and consistent power bases. Controls remain inside their defined limits. \\
+Shaft and repeated loads & Apply a constant torque and a known oscillating torque. Divide a cycle record into parts. & Recover the expected twist or frequency. Count known cycles correctly. Preserve unfinished cycles between parts. \\
+Shaft damage & Apply known cycles and a selected material curve. Check mean-load corrections separately. & Recover the hand-calculated damage. Keep unsupported material assumptions visible. \\
+Battery charge and voltage & Apply a known constant current, then zero current. Check a simple electrical resistance case. & Correct charge change and voltage direction. Respect voltage and charge limits. Include the selected charge efficiency. \\
+Battery heat and aging & Apply constant heat and a known cooling boundary. Apply constant aging conditions where an exact answer exists. & Correct heat balance. Aging continues during rest where the selected model requires it. No unexplained capacity or resistance reset. \\
+Converter losses and heat & Apply known current, switching rate, loss energy, and cooling conditions. & Correct average loss and thermal response. Check whether switching energy already includes a listed loss term. \\
+Converter damage & Apply a known temperature cycle and a constant-temperature interval. & Recover the selected cycle damage and capacitor aging. Do not count one cycle twice at a file boundary. \\
+Model exchange & Change internal steps, exchange intervals, and saved-output intervals separately. & Important outputs converge. An accurate internal solution does not hide a slow-exchange or slow-output error. \\
+Detailed-event selection & Replay overlapping events and a long quiet interval. & Correct starting states and sufficient response duration. Background damage is not set to zero without evidence. \\
+Operating-plan comparison & Replay a small case with known resource and reserve constraints. & No unfinished work, missing recharge, or shifted damage is presented as an improvement. \\
+\bottomrule
+\end{longtable}
+
+\section{Field data required for all equipment}
+Use one asset register for all measurements.
+An asset register is a list of equipment identities, connections, and important properties.
+Keep the original measurements unchanged.
+Store corrected or resampled values separately.
+
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Data group & Required field records & Reason and required check \\ \midrule\endhead
+Identity and connections & Asset serial numbers, meter identities, sensor locations, electrical drawings, cooling connections, and changes in supply paths. & Map a job to the equipment that actually carries its load. Check parallel supplies and the battery connection. \\
+Ratings and settings & Equipment ratings, approved limits, controller settings, protection settings, software versions, and dates of changes. & Define the operating range. Do not infer actual settings from a generic library default. \\
+Time records & Time zone, clock source, clock error, sample interval, event time, and recording delay. & Put related measurements on the same clock. Keep clock error much smaller than the shortest event feature used in a comparison. \\
+Measurement quality & Units, sensor range, calibration date, stated error, filtering, current and voltage sensor scale factors, and bad-data flags. & Distinguish model error from instrument error. Check whether a recorded value is instantaneous, averaged, or filtered. \\
+Initial condition & Earlier load and temperature history, initial charge, cooling state, machine state, and best available initial health. & Avoid a false cold start or a new-battery assumption for used equipment. \\
+Environmental conditions & Local air or coolant temperature, flow where available, humidity where relevant, and cooling availability. & Reproduce the conditions at the asset rather than use a distant weather record alone. \\
+Operating and maintenance history & Starts, stops, outages, alarms, inspections, repairs, component changes, oil treatment, and battery balancing events. & Separate operating exposure from changes caused by maintenance or replacement. \\
+Computer work & Job identity, requested resources, allocated nodes, start and end times, priority, service targets, and permitted changes. & Compare the same useful work. Distinguish a delayed job from a canceled or shortened job. \\
+Electrical and cooling demand & Synchronized GPU, server, rack, UPS, transformer, generator, battery, and cooling measurements where available. & Check the selected power boundary. GPU power alone does not identify facility power or transformer current. \\
+Independent condition evidence & Inspection results, material or cell tests, oil tests, capacity tests, and service records. & Check the life-related model separately from its operating-response model. \\
+\bottomrule
+\end{longtable}
+
+\section{Recording rates and observation periods}
+A model calculation step is not a sensor recording interval.
+Saving more model outputs cannot restore changes that the sensor never recorded.
+Check the sensor response and filtering as well as the saved sample rate.
+The rates below are starting examples, not equipment requirements.
+
+For a waveform of interest, let $f_{\mathrm{highest}}$ be the highest frequency that must be checked, in hertz.
+Let $f_{\mathrm{sample}}$ be the number of saved samples per second.
+A useful starting acquisition target is
+\begin{equation}
+f_{\mathrm{sample}}\geq 10 f_{\mathrm{highest}}.
+\label{eq:field-sample-target}
+\end{equation}
+This target is not a proof of sufficient accuracy.
+Check the result with a higher recording rate where possible.
+Use a suitable input filter to stop unresolved faster changes from appearing as false slower changes.
+Such a filter is often called an anti-alias filter in instrument manuals.
+For example, checking a 50~Hz shaft oscillation starts with at least 500 saved samples per second under this rule.
+Higher-frequency shaft motion or switching signals need a higher rate.
+
+\begin{longtable}{L{0.17\textwidth}L{0.36\textwidth}L{0.35\textwidth}}
+\toprule Measurement & Starting recording plan & Observation period and limit \\ \midrule\endhead
+Jobs and site demand & Keep each job event. For second-scale admission studies, start with synchronized power records every 0.1--1~s where instruments support them. & Record complete operating days and selected burst events. Faster bursts need faster measurements. \\
+Transformer temperatures & Start with oil, winding, air, and cooling-state records every 10--60~s. Preserve fan and pump change times. & Include warm-up, cooling, high-load periods, and seasonal conditions. Use finer data if the winding response requires it. \\
+Transformer current and loss inputs & Keep synchronized phase RMS current, voltage, and power trends, initially every 1~s where available. Use suitable waveform captures for harmonic losses. & Record enough preceding load to initialize temperature. A one-second current trend cannot identify its harmonic spectrum. \\
+Turbine power and controls & For load-change checks, seek power, speed, fuel-command, and control-state data every 0.01--0.1~s where available. & Include settled operation before and after several normal changes. Faster controller behavior needs finer data. \\
+Shaft response & Use a dedicated speed, twist, strain, or vibration recorder with rate and bandwidth selected from the shaft modes. Use Equation~\ref{eq:field-sample-target} only as a starting check. & Capture short synchronized windows around relevant events. A one-second plant log cannot validate a fast shaft oscillation. \\
+Turbine temperatures & Preserve actual thermocouple times and filtering. Seek 0.1--1~s exhaust records for suitable load events. Metal measurements need a separate instrument plan. & Include heating and cooling tails. Exhaust temperature does not directly measure blade or shaft metal temperature. \\
+Battery electrical response & For selected pulse checks, start with current and voltage every 1--10~ms if suitable recorders are available. Use 0.1--1~s trends for routine dispatch where adequate. & Include rest, charge, discharge, and recharge. Ordinary battery-control records may not resolve short pulses. \\
+Battery temperatures & Start with cell or module surface and coolant records every 1--10~s, plus cooling-mode changes. & Include complete thermal responses and a range of charge levels. Surface temperature alone does not establish core temperature. \\
+Converter electrical and thermal response & Select electrical waveform rates from the switching and ripple frequencies. Keep case, coolant, and validated junction-temperature estimates at rates suited to their responses. & Use short detailed captures and longer thermal histories. A slow case sensor cannot resolve junction-temperature cycles. \\
+Slow condition changes & Keep dated oil tests, battery capacity and resistance tests, and inspection results under an owner-approved plan. & Changes can need months or years to distinguish from test error. Repeat tests under comparable conditions. \\
+\bottomrule
+\end{longtable}
+
+Use continuous slow records and selected fast event records.
+This arrangement limits storage and processing cost.
+Keep enough data before and after each event to establish the starting state and settling response.
+Record why each event was selected.
+Include ordinary events, not only the largest events.
+Otherwise, the recorded set can give a false view of normal operation.
+
+\section{Transformer validation and field data}
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Check & Field or test data required & Comparison and claim limit \\ \midrule\endhead
+Loading and losses & Transformer ratings, loss tests, phase current and voltage, useful power, exchanged power, and harmonic measurements where material. & Check current loading and electrical losses before fitting temperature. Small losses can be difficult to obtain by subtracting two large meter readings. \\
+Oil temperature & Top-oil and preferably bottom-oil temperature, local air temperature, current history, and fan and pump status. & Compare temperature rise, peak, timing, and cooling after a load reduction. Test a different operating day from the fitted day. \\
+Winding hot spot & Direct winding temperature measurements where fitted, heat-run test records, winding-resistance temperature tests, and supported hot-spot factors. & Direct sensors provide stronger local evidence. Top-oil temperature alone does not independently validate the winding hot spot. \\
+Cooling changes & Fan and pump commands, actual status, maintenance, air or liquid flow where available, and temperature response. & Check response on each supported cooling mode. A command is not proof that a fan or pump operated. \\
+Paper aging & Checked hot-spot history, paper type, moisture evidence, service history, and paper-condition evidence where available. & Accumulated reference aging is not a direct measurement of remaining paper strength. Paper samples may be available only during major work or retirement. \\
+Paper-condition indicators & Laboratory paper-chain-length tests where possible and carefully interpreted oil markers of paper breakdown. The chain-length test is called degree of polymerization. & Oil markers depend on paper type, oil changes, and temperature. Do not convert one marker value directly into remaining transformer life. \\
+Oil condition & Repeated acid, water, inhibitor where present, interfacial-tension, and dissolved-gas tests. Interfacial tension measures force at an oil--water boundary. Include laboratory methods and detection limits. & Compare independent condition trends. Dissolved gases can indicate abnormal faults, not ordinary oil oxidation alone. \\
+Maintenance effect & Oil additions, drying, filtering, reclamation, replacement, and measurements before and after each action. & Check the measured change. New oil does not restore aged paper. Do not fit one continuous trend across treatment. \\
+\bottomrule
+\end{longtable}
+
+Fit the electrical and thermal model before the oil-reaction model.
+Do not change oil-reaction parameters to hide a temperature error.
+Several seasons can help check thermal behavior.
+Oil-service forecasts can need much longer field histories and controlled laboratory tests.
+Without this evidence, report temperature and paper-aging exposure with explicit assumptions.
+
+\section{Gas turbine validation and field data}
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Check & Field or test data required & Comparison and claim limit \\ \midrule\endhead
+Power and speed response & Time-aligned generator power, electrical frequency, shaft speed, load command, actual unit count, breaker state, and control settings. & Compare response direction, minimum and maximum speed, oscillations, and settling time. Test several starting loads. \\
+Fuel and control limits & Fuel flow where measured, fuel-valve position or command, pressure where relevant, active limiter flags, ambient conditions, and fuel properties. & Check control response and fuel accounting separately. A valve command is not a direct fuel-flow measurement. \\
+Machine parameters & Rotating-part inertia, shaft arrangement, gear ratio, generator pole count, shaft dimensions, and unit-specific control records. & Do not replace these data with generic defaults while claiming an asset-specific shaft-life prediction. \\
+Shaft forces and motion & Direct torque or twist where available; high-rate shaft-speed measurements; calibrated strain or vibration measurements; sensor positions. & Compare oscillation frequency, damping, phase, and amplitude. Vibration at a bearing is not automatically the material stress at a critical shaft location. \\
+Inferred shaft torque & Generator power, speed, loss estimates, rotational acceleration, and independent information about mechanical response. & A torque estimate from power and speed can support a check, but it is not an independent direct torque measurement. State the inference error. \\
+Material damage & Shaft material, heat treatment, geometry, local force-concentration factors, surface condition, and material fatigue tests. & Validate the conversion from torque to local stress and then stress to damage. Agreement in grid frequency alone does not validate this chain. \\
+Hot-part temperature & Calibrated exhaust thermocouples, fuel and cooling conditions, and metal-temperature evidence from suitable tests or manufacturer records. & Check exhaust predictions separately from metal predictions. A metal model needs independent heat-transfer evidence. \\
+Hot-part damage & Material tests for repeated temperature changes and sustained high-temperature deformation, component inspections, repairs, starts, trips, and running hours. & Separate estimated exposure from observed cracks or deformation. Inspection methods have detection limits. \\
+Long-term condition & Dated inspection findings, component replacements, reasons for replacement, and the exposure history since installation. & A scheduled replacement is not proof of physical failure. Retain records of components still in service. \\
+\bottomrule
+\end{longtable}
+
+First check the governor and electrical response.
+Then check shaft motion and the conversion to local material stress.
+Only then check the selected damage relationship.
+If shaft or material evidence is missing, retain a screening label for the life calculation.
+Obtaining equipment-specific shaft properties and material curves can be a major project delay.
+
+\section{Battery validation and field data}
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Check & Field or test data required & Comparison and claim limit \\ \midrule\endhead
+System boundary & Cell chemistry and model, series and parallel connections, battery-terminal current and voltage, converter-side powers, and auxiliary demand. & Separate cell losses, converter losses, and cooling power. Identify the meter boundary before comparing energy. \\
+Voltage response & Current and voltage during approved charge, discharge, pulse, and rest records at several charge levels and temperatures. & Compare voltage drop, recovery, and electrical limits. Fit parameters on different records from the final test. \\
+State of charge & Calibrated current history, initial charge estimate, approved reference capacity tests, and control-system estimates. & Compare charge balance and reference endpoints. The control-system estimate is not independent ground truth. \\
+Temperature & Several representative cell or module temperatures, sensor positions, coolant inlet and outlet temperatures, flow where available, and cooling power or mode. & Compare peak temperature, rise, cooling time, and temperature spread. One average sensor can miss a hot or weak module. \\
+Capacity fade & Repeat capacity tests with the same temperature, current, voltage limits, and rest procedure. Include test errors, installation date, and intervening use. & Distinguish permanent capacity loss from a change in test conditions. Field energy delivered under varying conditions is not a standardized capacity test. \\
+Resistance growth & Repeat defined current-pulse or impedance tests at matched charge, temperature, and measurement duration. Impedance describes voltage response to a changing current. & Compare the same resistance definition. Cold resistance or a different pulse duration can resemble permanent aging. \\
+Calendar aging & Dated storage and standby records, charge level, temperature, capacity and resistance checks, and comparable cell laboratory data. & Check behavior during low-use periods. Long high-charge standby can matter even when cycle use is small. \\
+Cycle aging & Resolved current, charge level, temperature, charge movement, rest periods, and repeat health tests. Include several depths and rates of use where approved. & Compare independent use histories. The same net energy or full-cycle count does not guarantee the same damage. \\
+Pack effects & Cell-voltage and temperature ranges, balancing records, unavailable modules, contactor changes, and maintenance. & Cell-level life curves do not establish pack-level life. A weak cell or connection can restrict the whole pack. \\
+\bottomrule
+\end{longtable}
+
+Select a life model for the actual chemistry and cell design.
+Check its published test range and supported outputs.
+Some available models do not predict resistance growth.
+Do not claim that output without an additional checked relationship.
+Cell laboratory tests can support field work, but transfer to a large pack needs separate evidence.
+Never request discharge below the approved backup reserve for a research experiment.
+
+\section{Power converter validation and field data}
+\begin{longtable}{L{0.18\textwidth}L{0.35\textwidth}L{0.35\textwidth}}
+\toprule Check & Field or test data required & Comparison and claim limit \\ \midrule\endhead
+Equipment description & Circuit arrangement, semiconductor module and capacitor part numbers, switching rate, control method, cooling layout, and settings. & Check whether the selected model describes the installed equipment. A generic converter rating is insufficient for device life. \\
+Electrical loss & Synchronized input and output power, voltage and current, coolant conditions, and manufacturer or bench-test loss maps. & Check efficiency across load and temperature. Meter error can be comparable to the loss obtained by subtracting two large powers. \\
+Switching behavior & Approved high-rate voltage and current captures, switching commands where available, device test records, and relevant instrument response. & Check switching-energy assumptions and waveform shape. A slow facility meter cannot validate individual switching losses. \\
+Temperature response & Case, baseplate, heat-sink, and coolant temperatures; coolant flow; sensor positions; and checked thermal-resistance test records. & Compare rise and cooling over each supported operating condition. Use enough preceding time to initialize the thermal states. \\
+Junction temperature & Suitable module tests, approved internal sensing where available, or a separately calibrated electrical method that estimates junction temperature. & Case temperature alone does not independently establish the temperature of the small semiconductor region. Record the method error. \\
+Repeated-temperature damage & Junction-temperature cycles, module-specific life tests, material and connection details, and inspection or failure records. & Check cycle size, mean temperature, and duration effects. A good temperature fit does not validate the selected lifetime curve. \\
+Capacitor condition & Capacitance, internal resistance measured by a defined method, ripple current, internal-temperature evidence, applied voltage, and dated service records. & Separate capacitor damage from semiconductor damage. Match test temperature and frequency when comparing condition. \\
+Failure and maintenance & Replaced part identity, failure analysis where available, replacement reason, operating history, and parts still in service. & Distinguish physical failure, preventive replacement, external faults, and changes in operating policy. \\
+\bottomrule
+\end{longtable}
+
+Direct junction-temperature and lifetime evidence can be difficult to obtain from an installed UPS or battery converter.
+Begin with approved external measurements and existing manufacturer tests.
+A module test bench may be needed for detailed validation.
+Do not open or instrument operating high-voltage equipment without an approved engineering procedure.
+
+\section{Acceptance measures for the coupled twin}
+The complete twin must pass checks that the separate components cannot establish.
+Use a common timeline and consistent electrical boundaries.
+Reserve complete events, days, or assets for final checks.
+Do not randomly divide adjacent samples from one event between fitting and final evaluation.
+
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Measure & What to report & Acceptance rule \\ \midrule\endhead
+Measurement coverage & Missing channels, gaps, clock error, changed settings, and unmeasured initial states. & No unresolved ambiguity that materially changes the intended comparison. Otherwise, narrow the claim. \\
+Operating-response error & Average and maximum absolute errors, peak error, event timing, and bias. Bias is a repeated error in one direction. & Errors must suit the sensor accuracy and the distance to an operating limit. An average alone is insufficient. \\
+Accumulated-exposure error & Energy, charge movement, equivalent paper-aging hours, temperature cycles, and selected shaft damage. & Numerical and reduction errors must be smaller than the difference used to select an operating plan. \\
+Step and exchange sensitivity & Changes after reducing internal steps, exchange intervals, and saved-output intervals. & Convergence of the important outputs and constraint decisions. Set absolute error limits for outputs near zero. \\
+Incorrect approval & Count cases that the reduced model accepts but the detailed reference or independent measurements reject. & No unexplained incorrect approval in the held-out set. A finite test set does not prove that this error can never occur. \\
+Incorrect rejection & Count cases rejected only by the reduced model. & Report the lost feasible choices. A needlessly conservative model can hide useful operating plans. \\
+Policy ranking & Ordering of feasible policies for each asset and any declared combined objective. & Treat differences within the error band as ties. Do not add unlike damage units without justified weights. \\
+Consequence of a different choice & Extra cost or damage when the reduced model selects another policy, evaluated with the reference model. & The consequence must stay within the declared decision tolerance. Agreement in ranking alone is not enough. \\
+Equivalent service & Completed work, job delay, final battery reserve, maintenance assumptions, and final thermal states. & No advantage from omitted work, omitted recharge, a cold reset, or consequences pushed beyond the study period. \\
+Uncertainty & How often measured values fall inside the stated prediction range, and how wide the range is. & Report both coverage and width on independent data. A very wide range is not automatically useful. \\
+Laptop cost & Wall-clock time, peak memory, processor and software versions, event count, and output size. & Meet the declared computing budget while retaining the required accuracy. A faster wrong decision is not an improvement. \\
+Out-of-range operation & Inputs outside fitted loads, temperatures, health states, or equipment modes. & Flag the result. Request a detailed check or use an approved fallback. Do not silently extrapolate. \\
+\bottomrule
+\end{longtable}
+
+For example, a provisional numerical target can require less than a one-percent change in accumulated exposure after step refinement.
+This is a project target, not a standard requirement.
+It is insufficient if the claimed strategy benefit is also about one percent.
+Use tighter targets or report that the strategies cannot be distinguished.
+For very small damage values, use an absolute tolerance as well as a percentage.
+
+Do not apply a universal temperature-error threshold to all equipment.
+An error acceptable far below a limit can be unacceptable near that limit.
+Agree on engineering tolerances with the equipment owner before using model results for operating advice.
+
+\section{A feasible field-data request for the first study}
+The following packages separate an attainable first study from later life validation.
+Durations are examples for planning, not evidence that every asset will change measurably in that period.
+
+\begin{longtable}{L{0.17\textwidth}L{0.36\textwidth}L{0.35\textwidth}}
+\toprule Package & Request to the site owner & First supported result \\ \midrule\endhead
+Equipment records & One identified electrical zone, its drawings, ratings, cooling records, asset ages, settings, and approved operating limits. & A consistent physical boundary and parameter-source list. \\
+Routine operation & Two to four representative weeks of available job, meter, temperature, charge, cooling, and event records. Retain additional seasonal records where available. & Checked power mapping and initial operating-response comparisons within the observed range. Not an annual life forecast. \\
+Fast events & A small owner-approved set, for example 10--20 normal load changes, with synchronized high-rate records where available. Include different starting loads and event spacing. & Detailed and reduced response comparisons. The count is a planning example, not a sufficient sample size for rare-event safety claims. \\
+Condition baseline & Latest oil tests, battery capacity and resistance tests, converter-condition records, turbine inspections, and maintenance since installation where available. & A supported or explicitly uncertain initial condition. Missing baseline data limit remaining-life claims. \\
+Independent evaluation & Whole events and days not used to fit parameters. Include at least one difficult condition within the intended operating range. & A check of prediction errors and operating-plan choices on unseen data. \\
+Later life evidence & Repeat owner-approved condition tests, material or cell laboratory tests, and longer histories including assets still in service. & Validation of selected degradation relationships and conditional maintenance forecasts. \\
+\bottomrule
+\end{longtable}
+
+Synthetic records can test the software before site data arrive.
+They cannot replace independent field measurements.
+If only GPU and job records are available, restrict the first claim to workload and assumed facility-power behavior.
+If only temperature records are available, do not claim validated material damage.
+
+\section{Highest-risk evidence gaps and longest activities}
+\begin{longtable}{L{0.19\textwidth}L{0.34\textwidth}L{0.35\textwidth}}
+\toprule Evidence gap & Risk to the study & Likely long activity and practical response \\ \midrule\endhead
+Shaft stress and material curves & A credible speed response can still give an unsupported shaft-life estimate. & Obtaining manufacturer data or instrumented shaft tests can dominate development. Report a screening estimate until this chain is checked. \\
+Hot-part metal temperature & Exhaust measurements can fit while internal metal exposure remains wrong. & Heat-transfer tests and component-specific material evidence need specialist access. Begin with observable exhaust behavior and label the missing link. \\
+Transformer oil and paper condition & A short thermal study cannot establish years of chemical life. & Controlled oil tests can need months. Relevant field condition changes can need years. Publish checked thermal exposure first. \\
+Battery health and pack transfer & A cell curve from another product can misstate site battery aging. & Repeated capacity and resistance tests and pack-level checks can need months or longer. Start with measured electrical and thermal behavior. \\
+Converter junction and package life & External temperature may not reveal internal cycle damage. & Manufacturer test access or a module test campaign can be slow. Separate loss validation, temperature validation, and life validation. \\
+Site permission and aligned data & Missing channels or unknown clocks can prevent any meaningful comparison. & Data agreements, security review, and safe instrumentation have uncertain lead times. Request records before building a large integration layer. \\
+Rare failures and maintenance policy & Few observed failures, or counting preventive replacement as failure, can bias a life forecast. & Useful histories can span years and multiple assets. Keep exposure and inspection evidence distinct from failure-time evidence. \\
+\bottomrule
+\end{longtable}
+
+These are data and validation risks, not just software tasks.
+A faster solver or another open-source library does not remove them.
+Separate engineering effort, waiting time for measurements, and laptop runtime in the project plan.
+
+\section{Required V\&V records}
+For each completed check, retain the following information:
+\begin{enumerate}
+\item The claim, asset identity, model version, and tested operating range.
+\item The input-data source, units, clock treatment, and measurement-quality checks.
+\item The parameters and the records used to select them.
+\item The separate records used for the final comparison.
+\item The internal steps, exchange times, saved-output intervals, and solver error settings.
+\item The acceptance rules declared before the test.
+\item The predicted and measured outputs, errors, failed cases, and limitations.
+\item The wall-clock time, peak memory, and laptop configuration.
+\item The supported claim, unsupported claims, reviewer, and next required evidence.
+\end{enumerate}
+
+The existing \sourcefile{docs/vv_log.md} records a turbine and electrical-model checking history.
+The existing \sourcefile{docs/vv_report.tex} provides a companion report.
+Their results do not establish validation of the proposed transformer, battery-life, or converter-life models.
+The field-data tables in this chapter are a collection and test plan, not a record of completed field validation.
+
+\chapter{Repository Status and Development Work}
+\label{chap:status}
+The final status list must distinguish reviewed code from proposed plans.
+No physical model is changed by this report.
+
+\chapter{Open-Source Software and Source Material}
+\label{chap:sources}
+The ASD-STE100 project describes its writing standard at
+\url{https://www.asd-ste100.org/}.
+The standard and its dictionary need a separate compliance review.
+
+\end{document}

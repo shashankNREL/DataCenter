@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title description">
+  <title id="title">Data Center Lifetime Digital Twin</title>
+  <desc id="description">A proposed open-source research platform connects measured AI workloads and facility equipment to four asset-life models: transformers, gas turbines, batteries, and power electronics. The twin predicts operating conditions, aging, and uncertainty. A job-to-resource scheduler and energy optimizer evaluate alternatives before approved actions return through existing facility controls. Potential impacts are better capacity planning, lower lifecycle cost, stronger resilience, and protected compute performance. Benefits require site-specific calibration and validation.</desc>
+  <defs>
+    <style>
+      text { font-family: 'Avenir Next', Avenir, 'Helvetica Neue', sans-serif; fill: #182026; letter-spacing: 0; }
+      .eyebrow { font-size: 17px; font-weight: 600; fill: #58636f; }
+      .stage { font-size: 18px; font-weight: 650; fill: #2451a6; }
+      .section-title { font-size: 28px; font-weight: 650; }
+      .asset-title { font-size: 25px; font-weight: 650; }
+      .body { font-size: 20px; }
+      .detail { font-size: 18px; fill: #58636f; }
+      .small { font-size: 16px; fill: #58636f; }
+      .flow-label { font-size: 18px; font-weight: 600; fill: #2451a6; }
+      .benefit-title { font-size: 27px; font-weight: 650; }
+      .benefit-body { font-size: 21px; fill: #58636f; }
+      .device { fill: #ffffff; stroke: #334650; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+      .wire { fill: none; stroke: #aebcc4; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+    <marker id="arrow-blue" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#2451a6"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#147d72"/>
+    </marker>
+    <symbol id="rack" viewBox="0 0 64 104">
+      <rect class="device" x="3" y="2" width="58" height="98" rx="4"/>
+      <path class="wire" d="M12 11 H52 M12 17 H52"/>
+      <rect class="device" x="10" y="27" width="44" height="16" rx="2"/>
+      <rect class="device" x="10" y="49" width="44" height="16" rx="2"/>
+      <rect class="device" x="10" y="71" width="44" height="16" rx="2"/>
+      <path class="wire" d="M17 35 H33 M17 57 H33 M17 79 H33"/>
+      <circle cx="45" cy="35" r="2.5" fill="#147d72"/>
+      <circle cx="45" cy="57" r="2.5" fill="#147d72"/>
+      <circle cx="45" cy="79" r="2.5" fill="#147d72"/>
+      <path class="device" d="M12 100 V103 M52 100 V103"/>
+    </symbol>
+    <symbol id="transformer" viewBox="0 0 64 64">
+      <path class="device" d="M21 21 V10 H26 V21 M38 21 V7 H43 V21"/>
+      <path class="wire" d="M18 13 H29 M35 10 H46 M18 17 H29 M35 14 H46"/>
+      <rect class="device" x="10" y="22" width="44" height="32" rx="3"/>
+      <path class="wire" d="M18 27 V48 M25 27 V48 M32 27 V48 M39 27 V48 M46 27 V48"/>
+      <path class="device" d="M17 54 V59 M47 54 V59 M9 59 H55"/>
+    </symbol>
+    <symbol id="turbine" viewBox="0 0 64 64">
+      <path class="device" d="M3 27 H11 V45 H3 Z M51 29 H61 V43 H51 Z"/>
+      <rect class="device" x="10" y="21" width="43" height="30" rx="14"/>
+      <circle class="device" cx="32" cy="36" r="9"/>
+      <path class="wire" d="M32 27 V45 M23 36 H41 M26 30 L38 42 M26 42 L38 30"/>
+      <path class="device" d="M20 51 V58 M44 51 V58 M15 58 H49"/>
+      <path class="wire" d="M24 15 V9 M32 15 V5 M40 15 V9"/>
+    </symbol>
+    <symbol id="battery" viewBox="0 0 64 64">
+      <path class="device" d="M25 9 V4 H39 V9"/>
+      <rect class="device" x="14" y="10" width="36" height="49" rx="4"/>
+      <rect x="21" y="41" width="22" height="10" rx="1" fill="#147d72"/>
+      <rect x="21" y="27" width="22" height="10" rx="1" fill="#8bc7ba"/>
+      <path class="wire" d="M26 18 H38"/>
+    </symbol>
+    <symbol id="converter" viewBox="0 0 64 64">
+      <rect class="device" x="8" y="10" width="48" height="46" rx="4"/>
+      <path class="wire" d="M16 47 L48 19 M16 24 H28 M16 29 H28"/>
+      <path d="M35 43 C38 34 41 34 44 43 C47 52 49 48 51 42" fill="none" stroke="#2451a6" stroke-width="2.5" stroke-linecap="round"/>
+      <path class="device" d="M3 24 H8 M3 42 H8 M56 24 H61 M56 42 H61"/>
+    </symbol>
+    <symbol id="check" viewBox="0 0 24 24">
+      <path d="M5 12 L10 17 L20 6" fill="none" stroke="#147d72" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#f7f9f8"/>
+  <path d="M64 44 H112" stroke="#147d72" stroke-width="5"/>
+  <text class="eyebrow" x="128" y="50">PROPOSED OPEN-SOURCE RESEARCH PLATFORM</text>
+  <text class="eyebrow" x="1856" y="50" text-anchor="end">DESIGN + OPERATIONS</text>
+  <text x="64" y="121" font-size="60" font-weight="650">Data Center Lifetime Digital Twin</text>
+  <text x="64" y="170" font-size="27" fill="#58636f">Connect AI scheduling to equipment life, power capacity and operating cost.</text>
+  <path d="M64 199 H1856" stroke="#d8dfdf" stroke-width="1.5"/>
+
+  <text class="stage" x="64" y="238">01 / OBSERVE</text>
+  <text class="section-title" x="64" y="280" data-max-width="390">Your operating data center</text>
+  <text class="stage" x="592" y="238">02 / PREDICT</text>
+  <text class="section-title" x="592" y="280" data-max-width="752">One twin. Four asset-life models.</text>
+  <text class="stage" x="1482" y="238">03 / OPTIMIZE</text>
+  <text class="section-title" x="1482" y="280" data-max-width="374">Coordinate the decisions</text>
+
+  <rect x="64" y="304" width="390" height="410" rx="8" fill="#eef2f4" stroke="#d3dde2" stroke-width="1.5"/>
+  <text class="detail" x="88" y="335">AI workloads + GPU racks</text>
+  <use href="#rack" x="103" y="352" width="62" height="101"/>
+  <use href="#rack" x="228" y="352" width="62" height="101"/>
+  <use href="#rack" x="353" y="352" width="62" height="101"/>
+  <path class="wire" d="M134 454 V472 H384 V454 M259 454 V472 M94 472 H424"/>
+  <text class="body" x="88" y="511">Facility power assets</text>
+  <use href="#transformer" x="90" y="527" width="58" height="58"/>
+  <use href="#turbine" x="183" y="527" width="58" height="58"/>
+  <use href="#battery" x="276" y="527" width="58" height="58"/>
+  <use href="#converter" x="369" y="527" width="58" height="58"/>
+  <text class="small" x="119" y="607" text-anchor="middle">Transformer</text>
+  <text class="small" x="212" y="607" text-anchor="middle">Turbine</text>
+  <text class="small" x="305" y="607" text-anchor="middle">BESS</text>
+  <text class="small" x="398" y="607" text-anchor="middle">UPS</text>
+  <path d="M88 628 H430" stroke="#ced9df" stroke-width="1.5"/>
+  <text class="body" x="88" y="659" data-max-width="342">Jobs, power, temperature + health</text>
+  <text class="detail" x="88" y="689" data-max-width="342">Joined by time and asset identity</text>
+
+  <rect x="576" y="294" width="784" height="430" rx="8" fill="#ffffff" stroke="#a8c9c2" stroke-width="1.5"/>
+  <rect x="592" y="310" width="364" height="165" rx="6" fill="#f2f6fc" stroke="#d4dfef"/>
+  <path d="M612 310 H660" stroke="#2451a6" stroke-width="4"/>
+  <use href="#transformer" x="612" y="329" width="56" height="56"/>
+  <text class="asset-title" x="687" y="350" data-max-width="249">Transformers</text>
+  <text class="detail" x="687" y="381" data-max-width="249">Hot-spot temperature</text>
+  <text class="body" x="612" y="421" data-max-width="324">Paper aging + oil condition</text>
+  <text class="small" x="612" y="451">Separate thermal and chemical models</text>
+
+  <rect x="980" y="310" width="364" height="165" rx="6" fill="#fff6e9" stroke="#e8dbc1"/>
+  <path d="M1000 310 H1048" stroke="#b47916" stroke-width="4"/>
+  <use href="#turbine" x="1000" y="329" width="56" height="56"/>
+  <text class="asset-title" x="1075" y="350" data-max-width="249">Gas turbines</text>
+  <text class="detail" x="1075" y="381" data-max-width="249">Load + thermal cycling</text>
+  <text class="body" x="1000" y="421" data-max-width="324">Fatigue + creep assessment</text>
+  <text class="small" x="1000" y="451">Component-specific calibration</text>
+
+  <rect x="592" y="495" width="364" height="165" rx="6" fill="#edf7f3" stroke="#caddd4"/>
+  <path d="M612 495 H660" stroke="#147d72" stroke-width="4"/>
+  <use href="#battery" x="612" y="514" width="56" height="56"/>
+  <text class="asset-title" x="687" y="535" data-max-width="249">BESS</text>
+  <text class="detail" x="687" y="566" data-max-width="249">SOC + cell temperature</text>
+  <text class="body" x="612" y="606" data-max-width="324">Capacity fade + resistance</text>
+  <text class="small" x="612" y="636">Calendar aging + cycle aging</text>
+
+  <rect x="980" y="495" width="364" height="165" rx="6" fill="#fcf0f1" stroke="#ead2d7"/>
+  <path d="M1000 495 H1048" stroke="#bc4a60" stroke-width="4"/>
+  <use href="#converter" x="1000" y="514" width="56" height="56"/>
+  <text class="asset-title" x="1075" y="535" data-max-width="249">Power electronics</text>
+  <text class="detail" x="1075" y="566" data-max-width="249">Junction temperature</text>
+  <text class="body" x="1000" y="606" data-max-width="324">Thermal-cycle damage</text>
+  <text class="small" x="1000" y="636">Device and package-specific curves</text>
+
+  <text x="968" y="697" font-size="20" font-weight="600" text-anchor="middle">Shared power network, cooling and retained asset states</text>
+
+  <path d="M454 480 H574" fill="none" stroke="#2451a6" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <text class="flow-label" x="515" y="427" text-anchor="middle">Measured</text>
+  <text class="flow-label" x="515" y="453" text-anchor="middle">load + state</text>
+  <path d="M1360 480 H1480" fill="none" stroke="#2451a6" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <text class="flow-label" x="1421" y="427" text-anchor="middle">Forecasts</text>
+  <text class="flow-label" x="1421" y="453" text-anchor="middle">+ uncertainty</text>
+  <path d="M1482 646 H1362" fill="none" stroke="#2451a6" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#arrow-blue)"/>
+  <text class="flow-label" x="1421" y="594" text-anchor="middle">Test plans</text>
+  <text class="flow-label" x="1421" y="620" text-anchor="middle">in the twin</text>
+
+  <rect x="1482" y="304" width="374" height="410" rx="8" fill="#ffffff" stroke="#d3dde2" stroke-width="1.5"/>
+  <text class="eyebrow" x="1512" y="337">JOBS</text>
+  <text class="eyebrow" x="1826" y="337" text-anchor="end">GPU GROUPS</text>
+  <path d="M1542 365 L1796 365 M1542 365 L1796 411 M1542 411 L1796 365 M1542 411 L1796 457 M1542 457 L1796 411 M1542 457 L1796 457" fill="none" stroke="#c8d6dc" stroke-width="2"/>
+  <path d="M1542 365 L1796 365 M1542 411 L1796 457 M1542 457 L1796 411" fill="none" stroke="#147d72" stroke-width="3"/>
+  <g fill="#2451a6" stroke="#ffffff" stroke-width="3">
+    <circle cx="1542" cy="365" r="12"/><circle cx="1542" cy="411" r="12"/><circle cx="1542" cy="457" r="12"/>
+  </g>
+  <g fill="#147d72" stroke="#ffffff" stroke-width="3">
+    <circle cx="1796" cy="365" r="12"/><circle cx="1796" cy="411" r="12"/><circle cx="1796" cy="457" r="12"/>
+  </g>
+  <text class="detail" x="1669" y="495" text-anchor="middle" data-max-width="326">Feasible job-to-resource matching</text>
+  <path d="M1512 514 H1826" stroke="#e0e6e8" stroke-width="1.5"/>
+  <use href="#check" x="1509" y="532" width="24" height="24"/>
+  <text class="body" x="1545" y="551" data-max-width="287">Place or stagger AI jobs</text>
+  <use href="#check" x="1509" y="572" width="24" height="24"/>
+  <text class="body" x="1545" y="591" data-max-width="287">Dispatch turbines + BESS</text>
+  <use href="#check" x="1509" y="612" width="24" height="24"/>
+  <text class="body" x="1545" y="631" data-max-width="287">Meet deadlines + reserves</text>
+  <path d="M1483 660 H1855 V706 Q1855 713 1848 713 H1490 Q1483 713 1483 706 Z" fill="#fff6e9"/>
+  <text x="1669" y="693" font-size="18" font-weight="600" text-anchor="middle" data-max-width="342">Safety checks + operator approval</text>
+
+  <path d="M1669 714 V750 Q1669 777 1642 777 H286 Q259 777 259 750 V716" fill="none" stroke="#147d72" stroke-width="3" marker-end="url(#arrow-teal)"/>
+  <text x="964" y="753" font-size="19" font-weight="600" fill="#147d72" text-anchor="middle">04 / APPROVED ACTIONS THROUGH EXISTING SCHEDULER + ENERGY MANAGEMENT</text>
+
+  <path d="M64 818 H1856" stroke="#d8dfdf" stroke-width="1.5"/>
+  <text class="eyebrow" x="64" y="851">POTENTIAL IMPACT / TO BE VALIDATED WITH SITE DATA</text>
+  <path d="M64 877 H106" stroke="#2451a6" stroke-width="4"/>
+  <text class="benefit-title" x="64" y="918" data-max-width="420">Plan capacity confidently</text>
+  <text class="benefit-body" x="64" y="955">Test GPU growth against power</text>
+  <text class="benefit-body" x="64" y="984">and thermal headroom.</text>
+  <path d="M528 877 H570" stroke="#147d72" stroke-width="4"/>
+  <text class="benefit-title" x="528" y="918" data-max-width="420">Reduce lifecycle cost</text>
+  <text class="benefit-body" x="528" y="955">Balance energy, equipment wear</text>
+  <text class="benefit-body" x="528" y="984">and maintenance tradeoffs.</text>
+  <path d="M992 877 H1034" stroke="#b47916" stroke-width="4"/>
+  <text class="benefit-title" x="992" y="918" data-max-width="420">Strengthen resilience</text>
+  <text class="benefit-body" x="992" y="955">Stress-test ramps, outages</text>
+  <text class="benefit-body" x="992" y="984">and backup-power reserves.</text>
+  <path d="M1456 877 H1498" stroke="#bc4a60" stroke-width="4"/>
+  <text class="benefit-title" x="1456" y="918" data-max-width="400">Protect compute value</text>
+  <text class="benefit-body" x="1456" y="955">Meet service targets while</text>
+  <text class="benefit-body" x="1456" y="984">shaping infrastructure demand.</text>
+
+  <text class="small" x="64" y="1027" data-max-width="1792">Open-source foundation: ExaDigiT/RAPS | pandapower + ANDES | PyBaMM / BLAST-Lite | OpenModelica | pyLife | OR-Tools / HiGHS</text>
+  <text class="small" x="64" y="1056" data-max-width="1792">Concept architecture. Benefits require calibration and validation. Existing equipment controls and protection remain authoritative.</text>
+</svg>

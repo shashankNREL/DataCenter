@@ -172,7 +172,7 @@
       <p><strong>Rated power</strong><br>Can it eventually supply the load?</p>
       <p><strong>Frequency ride-through</strong><br>Can it survive the first few seconds while the load changes?</p>
     </div>
-    <p>That second question is often missing from casual AI-power discussions.</p>
+    <p>On this two-hour trace, one, two, and three unbuffered turbines cross the trip threshold. Four turbines ride through, and one turbine also rides through when a fast battery handles the sudden changes.</p>
   </section>
 
   <section class="slide figure-slide">
@@ -197,11 +197,15 @@
   </section>
 
   <section class="slide">
-    <h1>Discussion Point</h1>
-    <p>Most utility-scale batteries are built for roughly 1 to 4 hours.</p>
-    <p>The AI fast-ramp problem can look like seconds of support at very high power.</p>
-    <p>That is closer to UPS, flywheel, supercapacitor, or high-power inverter behavior than ordinary long-duration energy shifting.</p>
-    <p class="prompt">Should data-center UPS assets become part of the power-control strategy?</p>
+    <h1>How To Read This Battery Chart</h1>
+    <ul>
+      <li><strong>MW is burst strength:</strong> how much power the battery and inverter can push or absorb at once.</li>
+      <li><strong>MWh is endurance:</strong> how long the stored energy can last.</li>
+      <li>The modeled 10-second split needs about <strong>9.9 MW</strong> but only <strong>18.4 kWh</strong>: about <strong>6.7 seconds</strong> at full power.</li>
+      <li>Its <strong>540C-equivalent</strong> ratio describes an extreme short burst. It is not a recommendation to operate an ordinary utility LFP battery at 540C.</li>
+    </ul>
+    <p>The cells, inverter, cooling, state-of-charge margin, and cycle life must all support the duty. The solution may be a purpose-built high-power battery, UPS, flywheel, supercapacitor, or a combination.</p>
+    <p class="prompt">Can data-center UPS assets also serve as the fast power shock absorber?</p>
   </section>
 
   <section class="slide figure-slide">
@@ -269,6 +273,22 @@
       <li>Coordinate with battery state of charge</li>
     </ul>
     <p class="prompt">Should AI training schedulers be part of the energy system design?</p>
+  </section>
+
+  <section class="slide figure-slide">
+    <h1>Three Scheduler Scenarios</h1>
+    <img src="figures/10_scheduler_scenario_rulers.png" alt="Node use for synchronized, irregular, and busy scheduler scenarios">
+  </section>
+
+  <section class="slide">
+    <h1>What The Scheduling Study Means</h1>
+    <p>The scheduler starts at most <strong>226 nodes per second</strong> instead of switching on every requested node at once. It performs the same computing work, but turns a large electrical step into a gentler ramp.</p>
+    <ul>
+      <li><strong>Synchronized:</strong> jobs have matching durations, so their endings line up. No battery action is selected, but the last work finishes 10 seconds later.</li>
+      <li><strong>Irregular:</strong> jobs finish at different times. Those repeated changes still require 2.22 MW of battery support in the best tested solution.</li>
+      <li><strong>Busy:</strong> 6,800 nodes are already occupied. Some jobs wait four minutes because the cluster is full; smoothing adds at most 11 seconds and does not delay the final finish.</li>
+    </ul>
+    <p class="prompt">Across all three cases, the worst one-second power change falls by about 92%.</p>
   </section>
 
   <section class="slide title">

@@ -36,12 +36,13 @@ If you only want one figure, run one of the individual scripts listed below.
 | Script | Output figure | Output data | What it shows |
 |---|---|---|---|
 | [tools/presentation/plot_ai_workload_story.py](../../tools/presentation/plot_ai_workload_story.py) | [figures/01_ai_workload_signature.png](figures/01_ai_workload_signature.png) | [data/ai_workload_signature_summary.csv](data/ai_workload_signature_summary.csv) | The AI load trace, a zoom around the worst 100 ms ramp, and the ramp-rate histogram. |
-| [tools/presentation/plot_frequency_trip_story.py](../../tools/presentation/plot_frequency_trip_story.py) | [figures/08_frequency_trip_story.png](figures/08_frequency_trip_story.png) | [data/frequency_trip_story.csv](data/frequency_trip_story.csv) | Why having enough rated MW is not enough. The unbuffered single turbine trips, while BESS or a larger fleet can ride through. |
+| [tools/presentation/plot_frequency_trip_story.py](../../tools/presentation/plot_frequency_trip_story.py) | [figures/08_frequency_trip_story.png](figures/08_frequency_trip_story.png) | [data/frequency_trip_story.csv](data/frequency_trip_story.csv) | Full-window minimum frequency for one, two, three, and four unbuffered turbines plus one turbine with BESS. The first three cross the trip threshold; the last two ride through. |
 | [tools/presentation/plot_bess_power_buffer.py](../../tools/presentation/plot_bess_power_buffer.py) | [figures/02_bess_power_buffer_timeseries.png](figures/02_bess_power_buffer_timeseries.png), [figures/03_bess_power_energy_sweep.png](figures/03_bess_power_energy_sweep.png) | [data/bess_power_buffer_sweep.csv](data/bess_power_buffer_sweep.csv) | The difference between a high-power, short-duration buffer and ordinary energy storage. |
 | [tools/presentation/plot_correlation_sweep.py](../../tools/presentation/plot_correlation_sweep.py) | [figures/04_correlation_sweep.png](figures/04_correlation_sweep.png) | [data/correlation_sweep_metrics.csv](data/correlation_sweep_metrics.csv) | How synchronized AI jobs can create a harsher electrical load than decorrelated jobs with the same average demand. |
 | [tools/presentation/plot_fleet_tradeoffs.py](../../tools/presentation/plot_fleet_tradeoffs.py) | [figures/05_fleet_tradeoffs.png](figures/05_fleet_tradeoffs.png) | [data/fleet_tradeoff_metrics.csv](data/fleet_tradeoff_metrics.csv) | The tradeoff between adding more turbines and adding a fast BESS buffer. |
 | [tools/presentation/plot_islanding_resiliency.py](../../tools/presentation/plot_islanding_resiliency.py) | [figures/06_islanding_resiliency_summary.png](figures/06_islanding_resiliency_summary.png) | [data/islanding_resiliency_metrics.csv](data/islanding_resiliency_metrics.csv) | Islanding, resynchronization, fuel reserve, voltage, and CO2 discussion metrics. |
 | [tools/presentation/plot_architecture_tradeoff_map.py](../../tools/presentation/plot_architecture_tradeoff_map.py) | [figures/07_architecture_tradeoff_map.png](figures/07_architecture_tradeoff_map.png) | [data/architecture_tradeoff_scores.csv](data/architecture_tradeoff_scores.csv) | A qualitative comparison of grid-only, gas-only, gas+BESS, fleet-only, and hybrid designs. |
+| [tools/presentation/plot_scheduler_scenarios.py](../../tools/presentation/plot_scheduler_scenarios.py) | [figures/10_scheduler_scenario_rulers.png](figures/10_scheduler_scenario_rulers.png) | [data/scheduler_scenario_timeline.csv](data/scheduler_scenario_timeline.csv), [data/scheduler_scenario_results.csv](data/scheduler_scenario_results.csv) | Node-use rulers and optimized results for the synchronized, irregular, and busy scheduler scenarios. |
 | [tools/presentation/run_all.py](../../tools/presentation/run_all.py) | All figures | All CSVs | Runs every script above in sequence. |
 
 The shared helper file [tools/presentation/common.py](../../tools/presentation/common.py) contains common functions for rebuilding the SuperCloud trace, calculating BESS metrics, setting plot style, and writing outputs.
@@ -89,7 +90,14 @@ Plain-English comparison:
 
 ### 3. Not All Batteries Are The Same
 
-Batteries differ in how quickly they can charge and discharge.
+Every battery system has two separate size limits:
+
+- **Power (MW)** is burst strength: how much power the battery and inverter can push or absorb at one instant. This is the width of the pipe.
+- **Energy (MWh)** is endurance: how long the battery can keep doing it. This is the size of the tank.
+
+The modeled 10-second smoothing case needs about 9.9 MW of power but only 0.0184 MWh, or 18.4 kWh, of usable energy swing. Dividing energy by power gives about 6.7 seconds at full output. It is therefore a very wide pipe attached to a very small tank.
+
+That is different from a common 10 MW / 40 MWh four-hour utility battery. The utility battery is designed to move energy over hours; this AI buffer is intended to catch sharp changes for seconds while the turbine catches up.
 
 The common shorthand is C-rate:
 
@@ -101,7 +109,20 @@ A 100 MW / 400 MWh battery is a 4-hour battery, or 0.25C.
 
 A 100 MW / 100 MWh battery is a 1-hour battery, or 1C.
 
-A seconds-scale AI buffer can imply a much higher effective C-rate. That kind of service may be closer to UPS, flywheel, supercapacitor, or specialized high-power battery systems than ordinary 4-hour grid storage.
+For the modeled AI buffer, 9.9 MW / 0.0184 MWh is about 540C equivalent. That number is a comparison showing how power-heavy the service is. It is **not** a recommendation to run an ordinary utility LFP battery cell at 540C. A real design must separately check cell chemistry, inverter power, bus and cable limits, cooling, state-of-charge headroom, cycle life, safety margin, and controls. The practical solution may use a purpose-built high-power battery, UPS, flywheel, supercapacitor, or a hybrid.
+
+The four panels on the slide say:
+
+- **Upper left:** changing how slowly the turbine is allowed to respond does not remove the roughly 8-10 MW burst requirement.
+- **Upper right:** asking the battery to cover the mismatch longer increases the required stored energy.
+- **Lower left:** the modeled cases sit in a high-power, low-energy region.
+- **Lower right:** the 10-second AI buffer is far more power-intensive than ordinary one-to-four-hour storage.
+
+### Frequency Comparison Update
+
+The five-case frequency slide uses the same full two-hour AI trace for each unbuffered fleet case. The computed minima are 20.730 Hz for one turbine, 27.961 Hz for two, 20.000 Hz for three, and 59.527 Hz for four. The corrected notebook supplies 59.800 Hz for one turbine with BESS.
+
+The one-, two-, and three-turbine cases cross the 57.8 Hz protection threshold. Their later extrema are model extrapolations, because a real generator would disconnect at the first trip crossing. The non-monotonic two-versus-three-turbine minima therefore should not be interpreted as three turbines being physically worse than two after a trip; both configurations fail the ride-through test.
 
 ### 4. Synchronization Matters
 
@@ -136,6 +157,18 @@ AI jobs are controlled by software schedulers. That means some power behavior ca
 A scheduler could gradually start jobs, stagger checkpoints, or delay non-urgent work during grid stress. This will not replace electrical hardware, but it can reduce the size and cost of that hardware.
 
 This is one of the most important discussion points for the presentation: AI workload scheduling may become part of energy-system design.
+
+### 8. The Three Scheduler Scenarios
+
+A node is one modeled server with four GPUs. Nine flexible jobs arrive in three groups. The selected rule starts at most 226 nodes each second instead of turning on every requested node at once. No useful work is removed; a delayed cohort runs for its full requested duration and finishes correspondingly later.
+
+The ruler figure uses a triangle for each job request. A pale bar means only some of that job's requested nodes are active, while a dark bar means all requested nodes are active. Bars that overlap horizontally represent jobs using different nodes at the same time. A gray line marks waiting that would occur even with immediate scheduling because the cluster lacks free nodes.
+
+- **Synchronized:** jobs in each arrival wave have equal durations. Their completions occur close together, and replacement work is available at convenient times. The fixed 226-node/s rule reduces the worst ramp from 6.18 to 0.50 MW/s. The selected operating point needs no battery action and the last job finishes 10 seconds later.
+- **Irregular:** the same job sizes arrive at the same times, but their durations differ. Completions are scattered, producing several closely spaced power changes. The ramp still falls to 0.50 MW/s, but the best tested operating point needs 2.22 MW of battery support and has a narrow 59.407 Hz minimum-frequency margin. The last job finishes 7 seconds later.
+- **Busy:** 6,800 of 9,472 nodes are already occupied, leaving only 2,672 for new jobs. Two jobs wait as long as 240 seconds because the cluster is full even under immediate scheduling. The smoothing rule adds at most 11 seconds beyond that unavoidable wait, reduces the ramp from 5.90 to 0.50 MW/s, selects no battery action, and does not delay the final completion.
+
+Under the report's 15-second extra-delay allowance, the fixed 226-node/s rule is the best tested schedule in all three scenarios. This is a comparison among tested policies, not proof of a globally optimal scheduler. The reported costs are illustrative short-window operating costs and exclude hardware purchase and the business value of job delay.
 
 ## First Pass Completed
 

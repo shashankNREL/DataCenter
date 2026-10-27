@@ -15,6 +15,7 @@ SCRIPTS = [
     "plot_fleet_tradeoffs.py",
     "plot_islanding_resiliency.py",
     "plot_architecture_tradeoff_map.py",
+    "plot_scheduler_scenarios.py",
 ]
 
 

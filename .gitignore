@@ -40,3 +40,5 @@ data/scheduler/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+/MSC01A_1211_B5_LM2500-Gas-Turbine_-r5b_rg.pdf

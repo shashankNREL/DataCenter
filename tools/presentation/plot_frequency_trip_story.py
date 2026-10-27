@@ -15,30 +15,44 @@ def main() -> None:
     cases = pd.DataFrame([
         {
             "case": "Single GT\nno buffer",
-            "f_min_hz": 20.7,
-            "f_max_hz": 71.1,
+            "f_min_hz": 20.730,
+            "f_max_hz": 71.093,
             "trip": "Trips",
             "note": "Fast AI ramps exceed governor and inertia limits",
         },
         {
-            "case": "Single GT\n+ BESS",
-            "f_min_hz": 59.8,
-            "f_max_hz": 60.32,
-            "trip": "Rides through",
-            "note": "Fast power mismatch is buffered before the turbine sees it",
+            "case": "2 GT\nno buffer",
+            "f_min_hz": 27.961,
+            "f_max_hz": 69.387,
+            "trip": "Trips",
+            "note": "Crosses the protection threshold during the full trace",
+        },
+        {
+            "case": "3 GT\nno buffer",
+            "f_min_hz": 20.000,
+            "f_max_hz": 1384.826,
+            "trip": "Trips",
+            "note": "Trips later in the full trace; post-trip values are not physical",
         },
         {
             "case": "4 GT fleet\nno buffer",
-            "f_min_hz": 59.53,
-            "f_max_hz": 60.68,
+            "f_min_hz": 59.527,
+            "f_max_hz": 60.675,
             "trip": "Rides through",
             "note": "More spinning machines add inertia and ramp capability",
+        },
+        {
+            "case": "Single GT\n+ BESS",
+            "f_min_hz": 59.800,
+            "f_max_hz": 60.320,
+            "trip": "Rides through",
+            "note": "Fast power mismatch is buffered before the turbine sees it",
         },
     ])
     cases.to_csv(DATA_DIR / "frequency_trip_story.csv", index=False)
 
-    colors = ["#D1495B", "#1B998B", "#1B998B"]
-    fig, ax = plt.subplots(figsize=(12.5, 5.8))
+    colors = ["#D1495B" if outcome == "Trips" else "#1B998B" for outcome in cases["trip"]]
+    fig, ax = plt.subplots(figsize=(13.8, 6.2))
 
     bars = ax.bar(cases["case"], cases["f_min_hz"], color=colors, alpha=0.86)
     ax.axhspan(59.4, 60.6, color="#1B998B", alpha=0.12, label="Continuous operation band: 59.4-60.6 Hz")
@@ -48,9 +62,9 @@ def main() -> None:
     for bar, (_, row) in zip(bars, cases.iterrows()):
         x = bar.get_x() + bar.get_width() / 2.0
         y = row["f_min_hz"]
-        ax.text(x, y + 1.0, f"min {y:.1f} Hz", ha="center", va="bottom",
+        ax.text(x, y + 0.7, f"min {y:.1f} Hz", ha="center", va="bottom",
                 fontsize=12, fontweight="bold", color="#222222")
-        outcome_y = y - 2.0 if row["trip"] == "Trips" else 25.0
+        outcome_y = max(19.3, y - 2.0) if row["trip"] == "Trips" else 25.0
         ax.text(x, outcome_y, row["trip"], ha="center", va="center", fontsize=13,
             color="white", fontweight="bold")
 
@@ -62,7 +76,8 @@ def main() -> None:
     ax.text(
         0.02,
         -0.20,
-        "Ranges come from the corrected LM2500 AI-workload notebook and fleet-study review outputs.",
+        "Same 2 h AI trace for every case. Red cases cross 57.8 Hz; their later minima are model extrapolations,\n"
+        "because real protection would disconnect the generator at the first trip crossing.",
         transform=ax.transAxes,
         fontsize=10,
         color="#555555",
